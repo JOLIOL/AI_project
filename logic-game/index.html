@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>논리 게이트 퍼즐</title>
+<style>
+:root {
+  --bg: #0e1320; --panel: #161d2d; --panel2: #1d2639; --line: #2b3651;
+  --text: #e7ecf6; --muted: #8e9ab3; --accent: #4da3ff;
+  --on: #ffc83d; --off: #56647f; --ok: #38c98a; --bad: #ff5d6c;
+  --gate: #202b42; --gate-stroke: #cfd8ea; --board: #111827; --grid: #1a2335;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #eef1f6; --panel: #ffffff; --panel2: #f3f5f9; --line: #d5dbe6;
+    --text: #1b2333; --muted: #5d6880; --accent: #1f6fd1;
+    --on: #e09a00; --off: #a3aec2; --ok: #1a9e63; --bad: #d63445;
+    --gate: #ffffff; --gate-stroke: #2a3550; --board: #fbfcfe; --grid: #e6eaf1;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 19px; margin: 0; }
+header .sub { color: var(--muted); font-size: 13px; }
+.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr) 310px; gap: 12px; padding: 12px; align-items: start; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.card h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+button { font: inherit; color: inherit; }
+
+#stageList { display: grid; gap: 4px; }
+#stageList button { display: flex; justify-content: space-between; align-items: center; gap: 6px;
+  width: 100%; text-align: left; padding: 7px 9px; border-radius: 8px; border: 1px solid transparent;
+  background: transparent; cursor: pointer; font-size: 13px; }
+#stageList button:hover:not(:disabled) { background: var(--panel2); }
+#stageList button.cur { border-color: var(--accent); background: var(--panel2); }
+#stageList button:disabled { color: var(--muted); cursor: not-allowed; opacity: .6; }
+.stars { color: var(--on); letter-spacing: 1px; font-size: 12px; white-space: nowrap; }
+.stars .dim { color: var(--off); }
+
+#stageTitle { font-size: 18px; margin: 0 0 4px; }
+#stageDesc { margin: 0 0 6px; line-height: 1.5; }
+#hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tool { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); cursor: pointer; font-size: 13px; }
+.tool:hover { border-color: var(--accent); }
+
+#palette { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 8px; min-height: 52px; }
+#palette .pg { touch-action: none; user-select: none; cursor: grab; border: 1px solid var(--line);
+  background: var(--panel2); border-radius: 10px; padding: 4px 8px 2px; text-align: center; font-size: 11px; color: var(--muted); }
+#palette .pg:hover { border-color: var(--accent); }
+#palette .pg svg { display: block; width: 64px; height: 36px; }
+#palette .none { color: var(--muted); font-size: 13px; align-self: center; }
+#info { color: var(--muted); font-size: 13px; min-height: 18px; }
+#info.warn { color: var(--bad); }
+
+#boardWrap { position: relative; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--board); }
+#board { display: block; width: 100%; height: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+#board .gridline { stroke: var(--grid); stroke-width: 1; }
+.wire { fill: none; stroke-width: 3; stroke-linecap: round; }
+.wire.s0 { stroke: var(--off); }
+.wire.s1 { stroke: var(--on); }
+.wire.sel { stroke: var(--accent); stroke-width: 5; }
+.wire.temp { stroke: var(--accent); stroke-dasharray: 6 5; }
+.wirehit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+.stub { stroke-width: 3; }
+.stub.s0 { stroke: var(--off); }
+.stub.s1 { stroke: var(--on); }
+.node { cursor: grab; }
+.node .body { fill: var(--gate); stroke: var(--gate-stroke); stroke-width: 2; stroke-linejoin: round; }
+.node .back { fill: none; stroke: var(--gate-stroke); stroke-width: 2; }
+.node.sel .body, .node.sel .back { stroke: var(--accent); stroke-width: 3; }
+.glabel { font-size: 8px; fill: var(--muted); text-anchor: middle; pointer-events: none; font-weight: 600; }
+.io { stroke-width: 2; }
+.io.s0 { fill: var(--panel2); stroke: var(--off); }
+.io.s1 { fill: var(--on); stroke: var(--on); }
+.iotext { font-size: 13px; font-weight: 700; text-anchor: middle; pointer-events: none; fill: var(--text); }
+.io.s1 + .iotext { fill: #1b1400; }
+.node.input { cursor: pointer; }
+.node.output { cursor: default; }
+.pin { fill: var(--panel); stroke: var(--gate-stroke); stroke-width: 1.5; }
+.pin.hot { fill: var(--accent); stroke: var(--accent); }
+
+#tableWrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 4px 5px; text-align: center; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+th.sep, td.sep { border-left: 2px solid var(--line); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--panel2); }
+tr.live td { outline: 1px solid var(--accent); outline-offset: -1px; }
+td.good { color: var(--ok); font-weight: 700; }
+td.wrong { color: var(--bad); font-weight: 700; }
+td.mark { width: 22px; }
+
+#result { margin-top: 10px; padding: 10px; border-radius: 10px; background: var(--panel2); font-size: 14px; line-height: 1.5; }
+#result.win { border: 1px solid var(--ok); animation: pop .35s ease-out; }
+#result .big { font-size: 17px; font-weight: 700; color: var(--ok); }
+#result .stars { font-size: 18px; }
+#nextBtn { margin-top: 8px; padding: 8px 12px; border-radius: 8px; border: 0; background: var(--ok); color: #fff; font-weight: 700; cursor: pointer; }
+@keyframes pop { from { transform: scale(.96); opacity: .4; } to { transform: none; opacity: 1; } }
+
+details { margin-top: 12px; font-size: 13px; }
+summary { cursor: pointer; color: var(--muted); }
+.help { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0; padding-left: 18px; }
+.ref { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin-top: 8px; }
+.ref b { font-family: ui-monospace, monospace; }
+
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 300px; }
+  #stagesCard { grid-column: 1 / -1; }
+  #stageList { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+}
+@media (max-width: 760px) {
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
+  #stageList { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  #stageList button { padding: 6px 7px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ 논리 게이트 퍼즐</h1>
+  <span class="sub">게이트를 이어 목표 진리표를 만족하는 회로를 만드세요</span>
+</header>
+
+<div class="layout">
+  <section class="card" id="stagesCard">
+    <h2>스테이지</h2>
+    <div id="stageList"></div>
+  </section>
+
+  <main class="card">
+    <h3 id="stageTitle"></h3>
+    <p id="stageDesc"></p>
+    <div class="row">
+      <button class="tool" id="hintBtn">💡 힌트</button>
+      <button class="tool" id="delBtn">🗑 선택 삭제</button>
+      <button class="tool" id="resetBtn">↺ 회로 초기화</button>
+    </div>
+    <p id="hint" hidden></p>
+    <div id="palette"></div>
+    <div id="info"></div>
+    <div id="boardWrap">
+      <svg id="board" viewBox="0 0 960 560" aria-label="회로 보드">
+        <g id="gridLayer"></g>
+        <g id="world"></g>
+      </svg>
+    </div>
+    <details>
+      <summary>조작 방법</summary>
+      <ul class="help">
+        <li>팔레트의 게이트를 보드로 끌어다 놓거나, 눌러서 바로 추가합니다.</li>
+        <li>출력 점(오른쪽)을 입력 점(왼쪽)으로 끌면 전선이 연결됩니다. 한 출력에서 전선을 여러 개 뽑을 수 있습니다.</li>
+        <li>이미 연결된 입력 점을 끌면 전선을 옮기거나, 빈 곳에 놓아 끊을 수 있습니다.</li>
+        <li>왼쪽 입력 상자를 누르면 0과 1이 바뀝니다. 진리표의 줄을 눌러도 그 입력으로 바뀝니다.</li>
+        <li>게이트나 전선을 선택한 뒤 Delete 키(또는 선택 삭제)로 지우고, 게이트를 보드 밖으로 끌어내도 지워집니다.</li>
+      </ul>
+    </details>
+  </main>
+
+  <aside class="card">
+    <h2>진리표</h2>
+    <div id="tableWrap"></div>
+    <div id="result"></div>
+    <details>
+      <summary>게이트 설명</summary>
+      <div class="ref" id="gateRef"></div>
+    </details>
+  </aside>
+</div>
+
+<script>
+'use strict';
+
+// ---------- 게이트 정의 ----------
+const GATES = {
+  NOT:  { n: 1, fn: a => a ^ 1,          desc: '입력을 뒤집습니다. 0 → 1, 1 → 0' },
+  AND:  { n: 2, fn: (a, b) => a & b,     desc: '두 입력이 모두 1일 때만 1' },
+  OR:   { n: 2, fn: (a, b) => a | b,     desc: '입력 중 하나라도 1이면 1' },
+  NAND: { n: 2, fn: (a, b) => (a & b) ^ 1, desc: 'AND의 반대. 이것 하나로 모든 회로를 만들 수 있습니다' },
+  NOR:  { n: 2, fn: (a, b) => (a | b) ^ 1, desc: 'OR의 반대. 둘 다 0일 때만 1' },
+  XOR:  { n: 2, fn: (a, b) => a ^ b,     desc: '두 입력이 서로 다르면 1' },
+  XNOR: { n: 2, fn: (a, b) => (a ^ b) ^ 1, desc: '두 입력이 같으면 1' },
+};
+
+// ---------- 스테이지 ----------
+const STAGES = [
+  { id: 'wire', title: '전선 연결', desc: '입력 A를 출력 Y에 그대로 연결하세요. A 오른쪽의 점을 끌어서 Y 왼쪽의 점에 놓으면 됩니다.',
+    inputs: ['A'], outputs: ['Y'], gates: [], best: 0, fn: a => [a], hint: '게이트가 필요 없습니다. 전선 하나면 충분해요.' },
+  { id: 'not', title: 'NOT 게이트', desc: 'Y = NOT A. 입력을 뒤집어 출력하세요.',
+    inputs: ['A'], outputs: ['Y'], gates: ['NOT'], best: 1, fn: a => [a ^ 1], hint: '팔레트에서 NOT을 끌어다 A와 Y 사이에 두세요.' },
+  { id: 'andor', title: 'AND와 OR', desc: 'X = A AND B, Y = A OR B 를 동시에 만드세요.',
+    inputs: ['A', 'B'], outputs: ['X', 'Y'], gates: ['AND', 'OR'], best: 2, fn: (a, b) => [a & b, a | b],
+    hint: '입력 하나에서 전선을 여러 개 뽑을 수 있습니다.' },
+  { id: 'nand-not', title: 'NAND로 NOT', desc: 'NAND만 써서 Y = NOT A 를 만드세요.',
+    inputs: ['A'], outputs: ['Y'], gates: ['NAND'], best: 1, fn: a => [a ^ 1],
+    hint: 'NAND의 두 입력에 같은 신호를 넣으면 어떻게 될까요?' },
+  { id: 'nand-and', title: 'NAND로 AND', desc: 'NAND만 써서 Y = A AND B 를 만드세요.',
+    inputs: ['A', 'B'], outputs: ['Y'], gates: ['NAND'], best: 2, fn: (a, b) => [a & b],
+    hint: 'NAND = NOT(AND)이니, 한 번 더 뒤집으면 됩니다.' },
+  { id: 'nand-or', title: 'NAND로 OR', desc: 'NAND만 써서 Y = A OR B 를 만드세요.',
+    inputs: ['A', 'B'], outputs: ['Y'], gates: ['NAND'], best: 3, fn: (a, b) => [a | b],
+    hint: '드모르간 법칙: A OR B = NOT(NOT A AND NOT B) = (NOT A) NAND (NOT B)' },
+  { id: 'xor', title: 'XOR 만들기', desc: 'AND, OR, NOT으로 Y = A XOR B (두 입력이 다를 때 1)를 만드세요.',
+    inputs: ['A', 'B'], outputs: ['Y'], gates: ['AND', 'OR', 'NOT'], best: 4, fn: (a, b) => [a ^ b],
+    hint: 'XOR은 "적어도 하나는 1이지만, 둘 다 1은 아닌 것"입니다.' },
+  { id: 'nand-xor', title: 'NAND로 XOR', desc: 'NAND만 써서 XOR을 만드세요. 최소 4개로 가능합니다.',
+    inputs: ['A', 'B'], outputs: ['Y'], gates: ['NAND'], best: 4, fn: (a, b) => [a ^ b],
+    hint: 'A NAND B의 결과 하나를 다른 NAND 두 개에 함께 넣어 보세요.' },
+  { id: 'half', title: '반가산기', desc: '1비트 두 개를 더합니다. S = 합의 1의 자리, C = 자리올림.',
+    inputs: ['A', 'B'], outputs: ['S', 'C'], gates: ['XOR', 'AND', 'OR', 'NOT'], best: 2, fn: (a, b) => [a ^ b, a & b],
+    hint: '1 + 1 = 10(2진수)이므로 S = 0, C = 1입니다. 각 출력의 진리표를 보면 아는 게이트가 보일 거예요.' },
+  { id: 'full', title: '전가산기', desc: 'A + B + Cin(아래 자리에서 올라온 올림)을 더해 S와 Cout을 만드세요.',
+    inputs: ['A', 'B', 'Cin'], outputs: ['S', 'Cout'], gates: ['XOR', 'AND', 'OR'], best: 5,
+    fn: (a, b, c) => { const s = a + b + c; return [s & 1, s >> 1]; },
+    hint: '반가산기 두 개를 이어 붙이고, 두 올림을 OR로 합칩니다.' },
+  { id: 'mux', title: '2:1 멀티플렉서', desc: '선택 신호 S가 0이면 Y = A, 1이면 Y = B 가 되게 하세요.',
+    inputs: ['S', 'A', 'B'], outputs: ['Y'], gates: ['AND', 'OR', 'NOT'], best: 4, fn: (s, a, b) => [s ? b : a],
+    hint: 'Y = (A AND NOT S) OR (B AND S)' },
+  { id: 'maj', title: '다수결 회로', desc: '세 입력 중 1이 두 개 이상이면 Y = 1.',
+    inputs: ['A', 'B', 'C'], outputs: ['Y'], gates: ['AND', 'OR', 'NOT'], best: 4, fn: (a, b, c) => [a + b + c >= 2 ? 1 : 0],
+    hint: 'AB + BC + CA 로 만들 수 있지만 게이트 5개가 듭니다. 묶어서 줄여 보세요.' },
+  { id: 'cmp', title: '1비트 비교기', desc: 'GT = (A > B), EQ = (A = B), LT = (A < B) 를 만드세요.',
+    inputs: ['A', 'B'], outputs: ['GT', 'EQ', 'LT'], gates: ['AND', 'OR', 'NOT', 'XOR', 'NOR'], best: 4,
+    fn: (a, b) => [a > b ? 1 : 0, a === b ? 1 : 0, a < b ? 1 : 0],
+    hint: 'A XOR B는 "둘이 다르다"는 뜻입니다. 다르면서 A가 1이면?' },
+  { id: 'dec', title: '2→4 디코더', desc: '2비트 수 A1A0이 가리키는 출력 하나만 1이 되게 하세요. (예: A1A0 = 10 이면 Y2만 1)',
+    inputs: ['A1', 'A0'], outputs: ['Y0', 'Y1', 'Y2', 'Y3'], gates: ['AND', 'NOT', 'NOR'], best: 4,
+    fn: (a1, a0) => { const v = a1 * 2 + a0; return [0, 1, 2, 3].map(k => (k === v ? 1 : 0)); },
+    hint: 'NOT 없이도 됩니다. Y0의 결과를 다른 출력에서 재사용해 보세요.' },
+  { id: 'parity', title: '패리티 검사기', desc: '4비트 중 1의 개수가 홀수이면 P = 1 (통신 오류 검출에 쓰입니다).',
+    inputs: ['A', 'B', 'C', 'D'], outputs: ['P'], gates: ['XOR', 'AND', 'OR', 'NOT'], best: 3,
+    fn: (a, b, c, d) => [a ^ b ^ c ^ d], hint: 'XOR은 1의 개수가 홀수인지 알려 줍니다.' },
+  { id: 'add2', title: '2비트 덧셈기', desc: 'A1A0 + B1B0 = S2S1S0. 두 자리 2진수 덧셈기를 만드세요.',
+    inputs: ['A1', 'A0', 'B1', 'B0'], outputs: ['S2', 'S1', 'S0'], gates: ['XOR', 'AND', 'OR'], best: 7,
+    fn: (a1, a0, b1, b0) => { const s = a1 * 2 + a0 + b1 * 2 + b0; return [(s >> 2) & 1, (s >> 1) & 1, s & 1]; },
+    hint: '아래 자리는 반가산기, 윗자리는 전가산기입니다.' },
+];
+
+// ---------- 저장 ----------
+const STORE_KEY = 'logic-gate-puzzle.v1';
+function loadProgress() {
+  try {
+    const p = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (p && typeof p === 'object') return { cleared: p.cleared || {}, circuits: p.circuits || {}, last: p.last | 0 };
+  } catch (e) { /* 저장소를 쓸 수 없으면 새로 시작 */ }
+  return { cleared: {}, circuits: {}, last: 0 };
+}
+const progress = loadProgress();
+function saveProgress() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(progress)); } catch (e) { /* 무시 */ }
+}
+
+// ---------- 상태 ----------
+const BW = 960, BH = 560;
+const state = { idx: 0, nodes: [], wires: [], live: {}, sel: null, drag: null, nextId: 1 };
+const $ = id => document.getElementById(id);
+const svg = $('board'), world = $('world');
+const cur = () => STAGES[state.idx];
+const byId = id => state.nodes.find(n => n.id === id);
+const isGate = n => n.type !== 'IN' && n.type !== 'OUT';
+const gateCount = () => state.nodes.filter(isGate).length;
+const unlocked = i => i === 0 || progress.cleared[STAGES[i - 1].id] != null || progress.cleared[STAGES[i].id] != null;
+
+function loadStage(i) {
+  state.idx = i;
+  progress.last = i;
+  const st = cur();
+  const nodes = [];
+  const gapIn = BH / (st.inputs.length + 1), gapOut = BH / (st.outputs.length + 1);
+  st.inputs.forEach((name, k) => nodes.push({ id: 'in:' + name, type: 'IN', name, x: 16, y: gapIn * (k + 1) - 18 }));
+  st.outputs.forEach((name, k) => nodes.push({ id: 'out:' + name, type: 'OUT', name, x: BW - 86, y: gapOut * (k + 1) - 18 }));
+  const saved = progress.circuits[st.id];
+  let maxId = 0;
+  if (saved) {
+    for (const g of saved.gates || []) {
+      if (!GATES[g.type] || !st.gates.includes(g.type)) continue;
+      nodes.push({ id: g.id, type: g.type, x: g.x, y: g.y });
+      maxId = Math.max(maxId, parseInt(String(g.id).slice(1), 10) || 0);
+    }
+  }
+  state.nodes = nodes;
+  const ids = new Set(nodes.map(n => n.id));
+  state.wires = ((saved && saved.wires) || []).filter(w => ids.has(w.from) && ids.has(w.to));
+  for (const w of state.wires) maxId = Math.max(maxId, parseInt(String(w.id).slice(1), 10) || 0);
+  state.nextId = maxId + 1;
+  state.live = Object.fromEntries(st.inputs.map(n => [n, 0]));
+  state.sel = null;
+  state.drag = null;
+  $('hint').hidden = true;
+  renderStageInfo();
+  renderPalette();
+  renderStageList();
+  commit();
+}
+
+function commit() {
+  const st = cur();
+  progress.circuits[st.id] = {
+    gates: state.nodes.filter(isGate).map(({ id, type, x, y }) => ({ id, type, x: Math.round(x), y: Math.round(y) })),
+    wires: state.wires,
+  };
+  render();
+  saveProgress();
+}
+
+// ---------- 기하 ----------
+function inputCount(n) { return n.type === 'IN' ? 0 : n.type === 'OUT' ? 1 : GATES[n.type].n; }
+function hasOutput(n) { return n.type !== 'OUT'; }
+function pinOffset(n, dir, idx) {
+  if (n.type === 'IN') return { x: 70, y: 18 };
+  if (n.type === 'OUT') return { x: 0, y: 18 };
+  if (dir === 'out') return { x: 70, y: 20 };
+  return { x: 0, y: GATES[n.type].n === 1 ? 20 : (idx === 0 ? 12 : 28) };
+}
+function pinPos(n, dir, idx) { const o = pinOffset(n, dir, idx); return { x: n.x + o.x, y: n.y + o.y }; }
+function wirePath(a, b) {
+  const dx = Math.max(30, Math.abs(b.x - a.x) / 2);
+  return `M${a.x},${a.y} C${a.x + dx},${a.y} ${b.x - dx},${b.y} ${b.x},${b.y}`;
+}
+function toBoard(e) {
+  const pt = svg.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+function insideBoard(e) {
+  const r = svg.getBoundingClientRect();
+  return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+}
+// 화면이 작아도 손가락으로 집을 수 있게 화면 기준 약 14px 이상으로 잡습니다.
+function hitRadius() { return Math.max(12, 14 * BW / svg.getBoundingClientRect().width); }
+function findPin(p, dir, excludeId) {
+  let best = null, bestD = hitRadius();
+  for (const n of state.nodes) {
+    if (n.id === excludeId) continue;
+    const count = dir === 'in' ? inputCount(n) : (hasOutput(n) ? 1 : 0);
+    for (let i = 0; i < count; i++) {
+      const q = pinPos(n, dir, i), d = Math.hypot(q.x - p.x, q.y - p.y);
+      if (d < bestD) { bestD = d; best = { id: n.id, dir, idx: i }; }
+    }
+  }
+  return best;
+}
+
+// ---------- 시뮬레이션 ----------
+function simulate(assign) {
+  const incoming = new Map();
+  for (const w of state.wires) incoming.set(w.to + ':' + w.pin, w.from);
+  const val = new Map();
+  const get = id => {
+    if (val.has(id)) return val.get(id);
+    val.set(id, 0);
+    const n = byId(id);
+    let v;
+    if (n.type === 'IN') v = assign[n.name] | 0;
+    else {
+      const ins = [];
+      for (let i = 0; i < inputCount(n); i++) {
+        const f = incoming.get(id + ':' + i);
+        ins.push(f != null ? get(f) : 0);
+      }
+      v = n.type === 'OUT' ? ins[0] : GATES[n.type].fn(...ins);
+    }
+    val.set(id, v);
+    return v;
+  };
+  for (const n of state.nodes) get(n.id);
+  return val;
+}
+
+function evaluateTable() {
+  const st = cur(), k = st.inputs.length, rows = [];
+  let allOk = true;
+  for (let r = 0; r < (1 << k); r++) {
+    const bits = st.inputs.map((_, i) => (r >> (k - 1 - i)) & 1);
+    const assign = {};
+    st.inputs.forEach((name, i) => { assign[name] = bits[i]; });
+    const exp = st.fn(...bits);
+    const val = simulate(assign);
+    const act = st.outputs.map(o => val.get('out:' + o));
+    const ok = exp.every((e, i) => e === act[i]);
+    if (!ok) allOk = false;
+    rows.push({ bits, exp, act, ok });
+  }
+  return { rows, allOk };
+}
+
+// ---------- 편집 ----------
+function reaches(from, target) {
+  const stack = [from], seen = new Set();
+  while (stack.length) {
+    const x = stack.pop();
+    if (x === target) return true;
+    if (seen.has(x)) continue;
+    seen.add(x);
+    for (const w of state.wires) if (w.from === x) stack.push(w.to);
+  }
+  return false;
+}
+function connect(a, b) {
+  const out = a.dir === 'out' ? a : b, inp = a.dir === 'out' ? b : a;
+  if (out.id === inp.id || reaches(inp.id, out.id)) {
+    flash('출력을 자기 자신의 입력으로 되돌리는 순환 회로는 쓸 수 없어요.', true);
+    return;
+  }
+  state.wires = state.wires.filter(w => !(w.to === inp.id && w.pin === inp.idx));
+  state.wires.push({ id: 'w' + state.nextId++, from: out.id, to: inp.id, pin: inp.idx });
+}
+function removeNode(id) {
+  state.nodes = state.nodes.filter(n => n.id !== id);
+  state.wires = state.wires.filter(w => w.from !== id && w.to !== id);
+  if (state.sel && state.sel.id === id) state.sel = null;
+}
+function deleteSelection() {
+  const s = state.sel;
+  if (!s) { flash('먼저 지울 게이트나 전선을 눌러 선택하세요.'); return; }
+  if (s.kind === 'node') { const n = byId(s.id); if (n && isGate(n)) removeNode(n.id); }
+  else state.wires = state.wires.filter(w => w.id !== s.id);
+  state.sel = null;
+  commit();
+}
+function clampNode(n) {
+  n.x = Math.min(Math.max(n.x, 100), BW - 170);
+  n.y = Math.min(Math.max(n.y, 4), BH - 44);
+}
+function placeDefault(n) {
+  for (let y = 40; y < BH - 50; y += 70) {
+    for (let x = 200; x < BW - 220; x += 110) {
+      if (state.nodes.every(m => m === n || Math.hypot(m.x - x, m.y - y) > 70)) { n.x = x; n.y = y; return; }
+    }
+  }
+  n.x = BW / 2 - 35; n.y = BH / 2 - 20;
+}
+
+let flashTimer = 0;
+function flash(text, warn) {
+  const el = $('info');
+  el.textContent = text;
+  el.className = warn ? 'warn' : '';
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { el.textContent = ''; el.className = ''; }, 3500);
+}
+
+// ---------- 그리기 ----------
+const AND_D = 'M10,0 H35 A20,20 0 0 1 35,40 H10 Z';
+const OR_D = 'M8,0 Q40,0 55,20 Q40,40 8,40 Q22,20 8,0 Z';
+const XOR_D = 'M12,0 Q42,0 57,20 Q42,40 12,40 Q26,20 12,0 Z';
+function gateBody(type) {
+  const bub = cx => `<circle class="body" cx="${cx}" cy="20" r="4"/>`;
+  switch (type) {
+    case 'AND': return `<path class="body" d="${AND_D}"/>`;
+    case 'NAND': return `<path class="body" d="${AND_D}"/>${bub(59)}`;
+    case 'OR': return `<path class="body" d="${OR_D}"/>`;
+    case 'NOR': return `<path class="body" d="${OR_D}"/>${bub(59)}`;
+    case 'XOR': return `<path class="back" d="M4,0 Q18,20 4,40"/><path class="body" d="${XOR_D}"/>`;
+    case 'XNOR': return `<path class="back" d="M4,0 Q18,20 4,40"/><path class="body" d="${XOR_D}"/>${bub(61)}`;
+    case 'NOT': return `<path class="body" d="M12,2 L48,20 L12,38 Z"/>${bub(52)}`;
+  }
+  return '';
+}
+function gateSVG(type, inVals, outVal) {
+  const n = GATES[type].n;
+  const ys = n === 1 ? [20] : [12, 28];
+  const stubs = ys.map((y, i) => `<line class="stub s${inVals[i] | 0}" x1="0" y1="${y}" x2="22" y2="${y}"/>`).join('')
+    + `<line class="stub s${outVal | 0}" x1="45" y1="20" x2="70" y2="20"/>`;
+  const label = `<text class="glabel" x="${type === 'NOT' ? 25 : 31}" y="23">${type}</text>`;
+  return stubs + gateBody(type) + label;
+}
+
+function renderGrid() {
+  let s = '';
+  for (let x = 40; x < BW; x += 40) s += `<line class="gridline" x1="${x}" y1="0" x2="${x}" y2="${BH}"/>`;
+  for (let y = 40; y < BH; y += 40) s += `<line class="gridline" x1="0" y1="${y}" x2="${BW}" y2="${y}"/>`;
+  $('gridLayer').innerHTML = s;
+}
+
+function render() {
+  const val = simulate(state.live);
+  const incoming = new Map();
+  for (const w of state.wires) incoming.set(w.to + ':' + w.pin, w.from);
+  const d = state.drag;
+  const hot = d && d.kind === 'wire' ? d.hover : null;
+  let s = '';
+
+  for (const w of state.wires) {
+    const a = byId(w.from), b = byId(w.to);
+    const path = wirePath(pinPos(a, 'out', 0), pinPos(b, 'in', w.pin));
+    const sel = state.sel && state.sel.kind === 'wire' && state.sel.id === w.id;
+    s += `<path class="wire s${val.get(w.from)}${sel ? ' sel' : ''}" d="${path}"/>`
+      + `<path class="wirehit" data-wire="${w.id}" d="${path}"/>`;
+  }
+  if (d && d.kind === 'wire') {
+    const a = pinPos(byId(d.from.id), d.from.dir, d.from.idx);
+    const b = hot ? pinPos(byId(hot.id), hot.dir, hot.idx) : d.p;
+    s += `<path class="wire temp" d="${d.from.dir === 'out' ? wirePath(a, b) : wirePath(b, a)}"/>`;
+  }
+
+  for (const n of state.nodes) {
+    const v = val.get(n.id) | 0;
+    const sel = state.sel && state.sel.kind === 'node' && state.sel.id === n.id;
+    let body;
+    if (n.type === 'IN') {
+      body = `<line class="stub s${v}" x1="54" y1="18" x2="70" y2="18"/>`
+        + `<rect class="io s${v}" x="0" y="0" width="54" height="36" rx="8"/><text class="iotext" x="27" y="23">${n.name}=${v}</text>`;
+    } else if (n.type === 'OUT') {
+      body = `<line class="stub s${v}" x1="0" y1="18" x2="16" y2="18"/>`
+        + `<rect class="io s${v}" x="16" y="0" width="54" height="36" rx="18"/><text class="iotext" x="43" y="23">${n.name}=${v}</text>`;
+    } else {
+      const ins = [];
+      for (let i = 0; i < GATES[n.type].n; i++) {
+        const f = incoming.get(n.id + ':' + i);
+        ins.push(f != null ? val.get(f) : 0);
+      }
+      body = gateSVG(n.type, ins, v);
+    }
+    let pins = '';
+    for (let i = 0; i < inputCount(n); i++) {
+      const o = pinOffset(n, 'in', i);
+      const h = hot && hot.id === n.id && hot.dir === 'in' && hot.idx === i;
+      pins += `<circle class="pin${h ? ' hot' : ''}" cx="${o.x}" cy="${o.y}" r="${h ? 6 : 4}"/>`;
+    }
+    if (hasOutput(n)) {
+      const o = pinOffset(n, 'out', 0);
+      const h = hot && hot.id === n.id && hot.dir === 'out';
+      pins += `<circle class="pin${h ? ' hot' : ''}" cx="${o.x}" cy="${o.y}" r="${h ? 6 : 4}"/>`;
+    }
+    const cls = n.type === 'IN' ? ' input' : n.type === 'OUT' ? ' output' : '';
+    s += `<g class="node${cls}${sel ? ' sel' : ''}" data-node="${n.id}" transform="translate(${n.x},${n.y})">${body}${pins}</g>`;
+  }
+  world.innerHTML = s;
+  renderTable();
+}
+
+function starsHTML(gates, best) {
+  const k = gates <= best ? 3 : gates <= best + 2 ? 2 : 1;
+  return `<span class="stars">${'★'.repeat(k)}<span class="dim">${'★'.repeat(3 - k)}</span></span>`;
+}
+
+function renderTable() {
+  const st = cur();
+  const { rows, allOk } = evaluateTable();
+  const liveBits = st.inputs.map(n => state.live[n] | 0).join('');
+  const ni = st.inputs.length, no = st.outputs.length;
+  const outHead = st.outputs.map((n, i) => `<th${i === 0 ? ' class="sep"' : ''}>${n}</th>`).join('');
+  let h = `<table><thead><tr><th colspan="${ni}">입력</th><th class="sep" colspan="${no}">목표</th>`
+    + `<th class="sep" colspan="${no}">내 회로</th><th></th></tr><tr>`
+    + st.inputs.map(n => `<th>${n}</th>`).join('') + outHead + outHead
+    + '<th></th></tr></thead><tbody>';
+  rows.forEach((r, ri) => {
+    const live = r.bits.join('') === liveBits;
+    h += `<tr data-row="${ri}"${live ? ' class="live"' : ''}>`
+      + r.bits.map(b => `<td>${b}</td>`).join('')
+      + r.exp.map((e, i) => `<td${i === 0 ? ' class="sep"' : ''}>${e}</td>`).join('')
+      + r.act.map((a, i) => `<td class="${i === 0 ? 'sep ' : ''}${a === r.exp[i] ? 'good' : 'wrong'}">${a}</td>`).join('')
+      + `<td class="mark">${r.ok ? '✓' : '✗'}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  $('tableWrap').innerHTML = h;
+
+  const g = gateCount();
+  const okCount = rows.filter(r => r.ok).length;
+  const res = $('result');
+  if (allOk) {
+    const prev = progress.cleared[st.id];
+    const first = prev == null;
+    if (first || g < prev) { progress.cleared[st.id] = g; renderStageList(); }
+    const best = progress.cleared[st.id];
+    const last = state.idx === STAGES.length - 1;
+    const wasWin = res.classList.contains('win');
+    res.className = 'win';
+    if (!wasWin) { res.style.animation = 'none'; void res.offsetWidth; res.style.animation = ''; }
+    res.innerHTML = `<div class="big">통과! 🎉</div>`
+      + `<div>게이트 ${g}개 ${starsHTML(g, st.best)}</div>`
+      + (g > st.best ? `<div>최소 ${st.best}개로도 만들 수 있어요. 도전해 보세요!</div>` : `<div>최소 개수로 완성했습니다.</div>`)
+      + (best < g ? `<div>내 최고 기록: ${best}개</div>` : '')
+      + (last ? '<div>모든 스테이지를 깼습니다. 축하합니다! 🏆</div>' : '<button id="nextBtn">다음 스테이지 →</button>');
+    const nb = $('nextBtn');
+    if (nb) nb.onclick = () => loadStage(state.idx + 1);
+  } else {
+    res.className = '';
+    res.innerHTML = `맞은 줄: <b>${okCount} / ${rows.length}</b> · 게이트 ${g}개<br>`
+      + `<span style="color:var(--muted);font-size:13px">★★★ 기준: 게이트 ${st.best}개 이하</span>`;
+  }
+}
+
+function renderStageList() {
+  $('stageList').innerHTML = STAGES.map((st, i) => {
+    const c = progress.cleared[st.id];
+    const right = c != null ? starsHTML(c, st.best) : unlocked(i) ? '' : '🔒';
+    return `<button data-stage="${i}" class="${i === state.idx ? 'cur' : ''}" ${unlocked(i) ? '' : 'disabled'}>`
+      + `<span>${i + 1}. ${st.title}</span>${right}</button>`;
+  }).join('');
+}
+
+function renderStageInfo() {
+  const st = cur();
+  $('stageTitle').textContent = `${state.idx + 1}. ${st.title}`;
+  $('stageDesc').textContent = st.desc;
+  $('hint').textContent = '💡 ' + st.hint;
+}
+
+function renderPalette() {
+  const st = cur();
+  const pal = $('palette');
+  if (!st.gates.length) { pal.innerHTML = '<span class="none">이 스테이지에서는 게이트를 쓰지 않습니다.</span>'; return; }
+  pal.innerHTML = st.gates.map(t =>
+    `<div class="pg" data-type="${t}" title="${t}: ${GATES[t].desc}">`
+    + `<svg viewBox="-2 -4 74 48" class="node">${gateSVG(t, [0, 0], 0)}</svg>${t}</div>`).join('');
+}
+
+function renderGateRef() {
+  $('gateRef').innerHTML = Object.entries(GATES).map(([t, g]) => `<b>${t}</b><span>${g.desc}</span>`).join('');
+}
+
+// ---------- 입력 처리 ----------
+$('palette').addEventListener('pointerdown', e => {
+  const el = e.target.closest('.pg');
+  if (!el) return;
+  e.preventDefault();
+  const p = toBoard(e);
+  const n = { id: 'g' + state.nextId++, type: el.dataset.type, x: p.x - 35, y: p.y - 20 };
+  state.nodes.push(n);
+  state.sel = { kind: 'node', id: n.id };
+  state.drag = { kind: 'new', id: n.id, ox: 35, oy: 20, sx: e.clientX, sy: e.clientY, moved: false };
+  render();
+});
+$('palette').addEventListener('pointerover', e => {
+  const el = e.target.closest('.pg');
+  if (el && !state.drag) flash(`${el.dataset.type}: ${GATES[el.dataset.type].desc}`);
+});
+
+svg.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  const p = toBoard(e);
+  const pin = findPin(p, 'out') || findPin(p, 'in');
+  if (pin) {
+    if (pin.dir === 'in') {
+      const ex = state.wires.find(w => w.to === pin.id && w.pin === pin.idx);
+      if (ex) {
+        // 연결된 입력을 끌면 전선의 끝을 집어 옮깁니다.
+        state.wires = state.wires.filter(w => w !== ex);
+        state.drag = { kind: 'wire', from: { id: ex.from, dir: 'out', idx: 0 }, p };
+      } else state.drag = { kind: 'wire', from: pin, p };
+    } else state.drag = { kind: 'wire', from: pin, p };
+    state.sel = null;
+    render();
+    return;
+  }
+  const nodeEl = e.target.closest('[data-node]');
+  if (nodeEl) {
+    const n = byId(nodeEl.dataset.node);
+    if (isGate(n)) {
+      state.sel = { kind: 'node', id: n.id };
+      state.drag = { kind: 'move', id: n.id, ox: p.x - n.x, oy: p.y - n.y, sx: e.clientX, sy: e.clientY, moved: false };
+    } else {
+      state.sel = null;
+      state.drag = { kind: 'click', id: n.id, sx: e.clientX, sy: e.clientY };
+    }
+    render();
+    return;
+  }
+  const wireEl = e.target.closest('[data-wire]');
+  state.sel = wireEl ? { kind: 'wire', id: wireEl.dataset.wire } : null;
+  render();
+});
+
+window.addEventListener('pointermove', e => {
+  const d = state.drag;
+  if (!d) return;
+  const p = toBoard(e);
+  if (d.kind === 'move' || d.kind === 'new') {
+    if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 4) d.moved = true;
+    const n = byId(d.id);
+    n.x = p.x - d.ox; n.y = p.y - d.oy;
+    render();
+  } else if (d.kind === 'wire') {
+    d.p = p;
+    d.hover = findPin(p, d.from.dir === 'out' ? 'in' : 'out', d.from.id);
+    render();
+  }
+});
+
+function endDrag(e) {
+  const d = state.drag;
+  if (!d) return;
+  state.drag = null;
+  if (d.kind === 'click') {
+    const n = byId(d.id);
+    if (n.type === 'IN' && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 8) state.live[n.name] ^= 1;
+    render();
+  } else if (d.kind === 'move' || d.kind === 'new') {
+    const n = byId(d.id);
+    if (!insideBoard(e) || e.type === 'pointercancel') {
+      if (d.kind === 'new' && !d.moved) placeDefault(n);
+      else { removeNode(n.id); flash('게이트를 지웠습니다.'); }
+    } else clampNode(n);
+    commit();
+  } else if (d.kind === 'wire') {
+    const target = e.type === 'pointercancel' ? null : findPin(toBoard(e), d.from.dir === 'out' ? 'in' : 'out', d.from.id);
+    if (target) connect(d.from, target);
+    commit();
+  }
+}
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
+
+window.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('input, textarea')) return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); }
+  else if (e.key === 'Escape') { state.sel = null; render(); }
+});
+
+$('tableWrap').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-row]');
+  if (!tr) return;
+  const st = cur(), k = st.inputs.length, r = +tr.dataset.row;
+  st.inputs.forEach((name, i) => { state.live[name] = (r >> (k - 1 - i)) & 1; });
+  render();
+});
+$('stageList').addEventListener('click', e => {
+  const b = e.target.closest('button[data-stage]');
+  if (b && !b.disabled) loadStage(+b.dataset.stage);
+});
+$('hintBtn').onclick = () => { $('hint').hidden = !$('hint').hidden; };
+$('delBtn').onclick = deleteSelection;
+$('resetBtn').onclick = () => {
+  if (!state.nodes.some(isGate) && !state.wires.length) return;
+  if (!confirm('이 스테이지의 회로를 모두 지울까요?')) return;
+  state.nodes = state.nodes.filter(n => !isGate(n));
+  state.wires = [];
+  state.sel = null;
+  commit();
+};
+
+renderGrid();
+renderGateRef();
+loadStage(Math.min(progress.last, STAGES.length - 1));
+if (!unlocked(state.idx)) loadStage(0);
+</script>
+</body>
+</html>
