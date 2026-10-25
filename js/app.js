@@ -30,6 +30,8 @@
     info: null,
     localInfo: null,
     loadToken: 0,
+    baseProfile: null,
+    buildingData: null,
   };
 
   let sky;
@@ -112,7 +114,10 @@
     updateMeta();
     setTime(sky.time);
     updateMap(lat, lon, fromMap);
+    state.baseProfile = null;
+    state.buildingData = null;
     sky.setProfile(window.Terrain.syntheticProfile(lat, lon));
+    sky.setBuildings(null);
     requestDraw();
 
     const token = ++state.loadToken;
@@ -121,7 +126,8 @@
       if (token === state.loadToken) showStatus(`지형 불러오는 중… ${Math.round(f * 100)}%`);
     }).then((prof) => {
       if (token !== state.loadToken) return;
-      sky.setProfile(prof);
+      state.baseProfile = prof;
+      applyEyeHeight();
       state.elevation = prof.observerElevation;
       updateMeta();
       showStatus('실제 지형(수치표고모델)을 적용했습니다', 2500);
@@ -130,6 +136,15 @@
       if (token !== state.loadToken) return;
       state.elevation = null;
       showStatus('지형 자료를 받지 못해 가상 지형을 표시합니다 (오프라인?)', 4000);
+    });
+
+    window.Buildings.load(lat, lon).then((data) => {
+      if (token !== state.loadToken) return;
+      state.buildingData = data;
+      applyEyeHeight();
+      if (data.list.length) showStatus(`주변 건물 ${data.list.length.toLocaleString()}개를 반영했습니다 (OpenStreetMap)`, 3000);
+    }).catch(() => {
+      if (token === state.loadToken) showStatus('건물 자료를 받지 못했습니다 (OpenStreetMap 서버 응답 없음)', 3500);
     });
 
     window.Terrain.loadLocalInfo(lat, lon).then((info) => {
@@ -147,6 +162,16 @@
         if (token === state.loadToken && n) $('placeName').textContent = n;
       }).catch(() => {});
     }
+    scheduleUrlUpdate();
+  }
+
+  // 관측 높이(옥상·전망대 등)를 지형·건물 윤곽에 반영
+  function applyEyeHeight() {
+    const extra = Math.max(0, parseFloat($('eyeHeight').value) || 0);
+    sky.eyeHeight = window.Terrain.EYE_HEIGHT_M + extra;
+    if (state.baseProfile) sky.setProfile(window.Terrain.reprofile(state.baseProfile, extra));
+    sky.setBuildings(state.buildingData ? window.Buildings.profile(state.buildingData, sky.eyeHeight) : null);
+    requestDraw();
     scheduleUrlUpdate();
   }
 
@@ -274,10 +299,12 @@
     el.addEventListener('change', () => {
       sky.opts[el.dataset.opt] = el.checked;
       if (el.dataset.opt === 'terrain') sky.uploadHorizon();
+      if (el.dataset.opt === 'buildings') sky.uploadBuildings();
       requestDraw();
     });
   });
   $('useCloud').addEventListener('change', applyCloud);
+  $('eyeHeight').addEventListener('change', applyEyeHeight);
   const pollutionNames = ['아주 어두운 하늘', '시골', '교외', '도시 근교', '도심'];
   const updatePollution = () => {
     sky.opts.pollution = +$('pollution').value;
@@ -465,7 +492,7 @@
     urlTimer = setTimeout(() => {
       const q = new URLSearchParams({
         lat: sky.lat.toFixed(4), lon: sky.lon.toFixed(4), t: new Date(sky.time).toISOString().slice(0, 16) + 'Z',
-        az: sky.view.az.toFixed(0), alt: sky.view.alt.toFixed(0), fov: sky.view.fov.toFixed(0),
+        h: (+$('eyeHeight').value || 0).toFixed(0), az: sky.view.az.toFixed(0), alt: sky.view.alt.toFixed(0), fov: sky.view.fov.toFixed(0),
       });
       try { history.replaceState(null, '', '?' + q); } catch (e) { /* file:// 등 */ }
     }, 400);
@@ -496,6 +523,8 @@
   const t0 = q.has('t') ? Date.parse(q.get('t')) : NaN;
   sky.time = Number.isFinite(t0) ? t0 : Date.now();
   sky.view = { az: num('az', 180), alt: num('alt', 25), fov: num('fov', 100) };
+  $('eyeHeight').value = Math.max(0, num('h', 0));
+  sky.eyeHeight = window.Terrain.EYE_HEIGHT_M + +$('eyeHeight').value;
   initMap();
   setLocation(num('lat', PRESETS[0][1]), num('lon', PRESETS[0][2]), { name: q.has('lat') ? null : PRESETS[0][0] });
   onViewChange();

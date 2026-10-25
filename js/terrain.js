@@ -57,10 +57,12 @@
     };
   }
 
-  function buildProfile(h0, grid) {
+  // extra: 지면보다 높은 곳(옥상, 전망대)에서 볼 때 추가 높이 (m)
+  function buildProfile(h0, grid, extra = 0) {
     const prof = emptyProfile();
     prof.observerElevation = h0;
-    const eye = h0 + EYE_HEIGHT_M;
+    prof.grid = grid;
+    const eye = h0 + EYE_HEIGHT_M + extra;
     // 가장 낮은 지평선은 수평선의 강하각(dip)
     const dip = -Math.sqrt((2 * Math.max(eye, 1)) / (EARTH_R * 1000 / (1 - REFRACTION_K))) * 180 / Math.PI;
     for (let a = 0; a < N_AZ; a++) {
@@ -117,6 +119,14 @@
     return prof;
   }
 
+  // 관측 높이만 바꿔 같은 고도 자료로 다시 계산
+  function reprofile(prof, extra) {
+    if (!prof.grid) return prof;
+    const p = buildProfile(prof.observerElevation, prof.grid, extra);
+    p.source = prof.source;
+    return p;
+  }
+
   // 지역 시간대, 구름양 (Open-Meteo Forecast API)
   async function loadLocalInfo(lat, lon) {
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat.toFixed(4) + '&longitude=' + lon.toFixed(4) +
@@ -149,5 +159,5 @@
     return (await res.json()).map((r) => ({ name: r.display_name, lat: +r.lat, lon: +r.lon }));
   }
 
-  root.Terrain = { N_AZ, loadHorizon, syntheticProfile, emptyProfile, loadLocalInfo, reverseGeocode, searchPlace };
+  root.Terrain = { N_AZ, EYE_HEIGHT_M, loadHorizon, reprofile, syntheticProfile, emptyProfile, loadLocalInfo, reverseGeocode, searchPlace };
 })(window);

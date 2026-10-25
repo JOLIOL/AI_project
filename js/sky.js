@@ -72,6 +72,8 @@ uniform vec3 uMoon;
 uniform float uMoonLight;
 uniform float uAtmos;
 uniform float uDegPerPx;
+uniform sampler2D uBuild;
+uniform float uEye;
 const float PI = 3.14159265;
 vec4 horizonAt(float az) {
   float n = float(textureSize(uHorizon, 0).x);
@@ -82,12 +84,22 @@ vec4 horizonAt(float az) {
   int b = int(mod(i0 + 1.0, n));
   return mix(texelFetch(uHorizon, ivec2(a, 0), 0), texelFetch(uHorizon, ivec2(b, 0), 0), t);
 }
+vec2 buildingAt(float az) {
+  int n = textureSize(uBuild, 0).x;
+  int i = int(mod(floor(az / (2.0 * PI) * float(n)), float(n)));
+  return texelFetch(uBuild, ivec2(i, 0), 0).rg;
+}
 void main() {
   vec3 d = viewDir();
   float az = mod(atan(d.x, d.y), 2.0 * PI);
   float alt = degrees(asin(clamp(d.z, -1.0, 1.0)));
   vec4 hp = horizonAt(az);
-  float edge = clamp((hp.r - alt) / uDegPerPx + 0.5, 0.0, 1.0);
+  vec2 bd = buildingAt(az);
+  float edgeT = clamp((hp.r - alt) / uDegPerPx + 0.5, 0.0, 1.0);
+  float edgeB = clamp((bd.r - alt) / uDegPerPx + 0.5, 0.0, 1.0);
+  // 건물 밑동보다 아래는 그 앞의 땅
+  edgeB *= step(degrees(atan(-uEye, max(bd.g, 0.01) * 1000.0)), alt);
+  float edge = max(edgeT, edgeB);
   if (edge <= 0.0) discard;
 
   float day = smoothstep(-0.105, 0.2, uSun.z) * uAtmos;
@@ -117,6 +129,29 @@ void main() {
     col = mix(col, water, sea);
   }
   col *= 0.55 + 0.45 * smoothstep(-35.0, 0.0, alt);
+
+  // 건물: 거리가 멀수록 대기에 묻혀 흐려지고, 밤에는 창문 불빛이 켜진다
+  if (edgeB > 0.0) {
+    float dk = max(bd.g, 0.01);
+    float haze = smoothstep(0.2, 6.0, dk);
+    vec3 bN = mix(vec3(0.016, 0.018, 0.026), vec3(0.04, 0.05, 0.08), haze) * lightN;
+    vec3 bD = mix(vec3(0.34, 0.35, 0.38), vec3(0.56, 0.62, 0.7), haze);
+    vec3 bcol = mix(bN, bD, day);
+    float dm = dk * 1000.0;
+    float cellA = degrees(3.2 / dm);
+    float cellW = degrees(3.4 / dm);
+    float base = degrees(atan(-uEye, dm));
+    vec2 g = vec2(degrees(az) / cellW, (alt - base) / cellA);
+    vec2 cell = floor(g);
+    vec2 f = fract(g);
+    float inWin = step(0.22, f.x) * step(f.x, 0.78) * step(0.3, f.y) * step(f.y, 0.82) * step(0.5, cell.y);
+    float on = step(0.62, hash(cell + vec2(floor(dk * 53.0), 7.0)));
+    float detail = smoothstep(2.5, 6.0, cellA / uDegPerPx);
+    float lit = mix(0.07, inWin * on, detail);
+    vec3 winCol = mix(vec3(1.0, 0.76, 0.42), vec3(0.82, 0.9, 1.0), step(0.7, hash(cell * 1.37)));
+    bcol += (1.0 - day) * uAtmos * lit * winCol * mix(0.75, 0.35, haze);
+    col = mix(col, bcol, edgeB);
+  }
   col += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
   outColor = vec4(col * edge, edge);
 }`;
@@ -190,7 +225,7 @@ void main() {
       this.lon = 126.978;
       this.time = Date.now();
       this.opts = { lines: true, conNames: true, starNames: true, planets: true, milkyWay: true, grid: false,
-        terrain: true, atmosphere: true, pollution: 0.25, cloud: 0 };
+        terrain: true, buildings: true, atmosphere: true, pollution: 0.25, cloud: 0 };
       this.profile = window.Terrain.emptyProfile();
       this.flatProfile = window.Terrain.emptyProfile();
       this.picks = [];
@@ -198,6 +233,10 @@ void main() {
       this.prepareData(data);
       this.makeSprites();
       this.horizonTex = null;
+      this.buildTex = null;
+      this.buildings = null;
+      this.buildTop = new Float32Array(1).fill(-90);
+      this.eyeHeight = 1.7;
       this.uploadHorizon();
       this.resize();
     }
@@ -256,15 +295,58 @@ void main() {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      this.uploadBuildings();
     }
 
-    horizonAlt(az) {
-      const p = this.activeProfile().far;
-      const n = p.length;
+    // buildings: { top, dist } (Buildings.profile 결과) 또는 null
+    setBuildings(buildings) {
+      this.buildings = buildings;
+      this.uploadBuildings();
+    }
+
+    uploadBuildings() {
+      const { gl } = this.groundGL;
+      const b = this.opts.buildings ? this.buildings : null;
+      const n = b ? b.top.length : 1;
+      const top = new Float32Array(n).fill(-90);
+      const buf = new Float32Array(n * 4);
+      if (b) {
+        const prof = this.activeProfile();
+        for (let i = 0; i < n; i++) {
+          const az = ((i + 0.5) * 360) / n;
+          let t = b.top[i];
+          // 더 가까운 산·언덕에 가려지는 먼 건물은 숨긴다
+          if (b.dist[i] > 0.3 && t < this.profileAt(prof.near, az)) t = -90;
+          if (b.dist[i] > 1.5 && t < this.profileAt(prof.mid, az)) t = -90;
+          top[i] = t;
+          buf[i * 4] = t;
+          buf[i * 4 + 1] = b.dist[i];
+        }
+      } else {
+        buf[0] = -90;
+      }
+      this.buildTop = top;
+      if (!this.buildTex) this.buildTex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, this.buildTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, n, 1, 0, gl.RGBA, gl.FLOAT, buf);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    }
+
+    profileAt(arr, az) {
+      const n = arr.length;
       const x = (A.mod(az, 360) / 360) * n;
       const i = Math.floor(x);
       const t = x - i;
-      return p[i % n] * (1 - t) + p[(i + 1) % n] * t;
+      return arr[i % n] * (1 - t) + arr[(i + 1) % n] * t;
+    }
+
+    horizonAlt(az) {
+      const bt = this.buildTop;
+      const b = bt[Math.floor((A.mod(az, 360) / 360) * bt.length) % bt.length];
+      return Math.max(this.profileAt(this.activeProfile().far, az), b);
     }
 
     resize() {
@@ -397,6 +479,10 @@ void main() {
         gl.bindTexture(gl.TEXTURE_2D, this.horizonTex);
         gl.uniform1i(u.uHorizon, 0);
         gl.uniform1f(u.uDegPerPx, this.degPerPx(cam) / dpr);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.buildTex);
+        gl.uniform1i(u.uBuild, 1);
+        gl.uniform1f(u.uEye, this.eyeHeight);
       }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }

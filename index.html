@@ -69,9 +69,13 @@
         <label><input type="checkbox" data-opt="milkyWay" checked> 은하수</label>
         <label><input type="checkbox" data-opt="grid"> 고도/방위 격자</label>
         <label><input type="checkbox" data-opt="terrain" checked> 실제 지형</label>
+        <label><input type="checkbox" data-opt="buildings" checked> 건물</label>
         <label><input type="checkbox" data-opt="atmosphere" checked> 대기·밝기 효과</label>
         <label><input type="checkbox" id="useCloud"> 현재 구름양 반영</label>
       </div>
+      <label class="block">관측 높이 <span class="meta">(지면 위, m · 옥상이나 전망대에서 볼 때)</span>
+        <input id="eyeHeight" type="number" min="0" max="2000" step="1" value="0">
+      </label>
       <label class="block">빛공해 <span id="pollutionLabel" class="meta"></span>
         <input id="pollution" type="range" min="0" max="1" step="0.05" value="0.25">
       </label>
@@ -94,7 +98,7 @@
     </section>
 
     <p class="credits">
-      별 자료: Hipparcos·Yale BSC (d3-celestial, BSD-3) · 지형·시간대: Open-Meteo · 지명: OpenStreetMap Nominatim ·
+      별 자료: Hipparcos·Yale BSC (d3-celestial, BSD-3) · 지형·시간대: Open-Meteo · 건물: OpenStreetMap (Overpass) · 지명: OpenStreetMap Nominatim ·
       위성 사진: Esri World Imagery
     </p>
   </aside>
@@ -107,6 +111,7 @@
   <script src="data/sky-data.js"></script>
   <script src="js/astro.js"></script>
   <script src="js/terrain.js"></script>
+  <script src="js/buildings.js"></script>
   <script src="js/sky.js"></script>
   <script src="js/app.js"></script>
 </body>
