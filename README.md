@@ -25,7 +25,7 @@ python3 -m http.server 8000
 - **실제 지형 배경**: 관측 지점 주변 반경 50 km의 고도 자료(AWS Terrain Tiles: SRTM 등, 가까운 곳 약 30 m·먼 곳 약 250 m 간격)로
   방위 2°마다 산 능선을 계산해 가까운 산·먼 산을 층으로 그립니다. 지구 곡률과 대기 굴절을 반영하고,
   바다 방향은 수면과 달빛·햇빛 반사로 표현합니다.
-- **실제 건물**: OpenStreetMap에 등록된 건물(반경 700 m의 모든 건물 + 6 km 안의 고층 건물)을 불러와
+- **실제 건물**: OpenStreetMap에 등록된 건물(반경 약 1.5 km의 모든 건물 + 6 km 안의 고층 건물)을 불러와
   건물 윤곽을 지평선에 세웁니다. 높이 태그가 없으면 층수 × 3.2 m, 그것도 없으면 용도별 기본 높이를 씁니다.
   밤에는 창문 불빛이 켜지고, 먼 건물은 대기에 묻혀 흐리게, 산 뒤의 건물은 가려져 보입니다.
 - **관측 높이**: 옥상·전망대처럼 지면보다 높은 곳에서 보는 경우 높이(m)를 넣으면 지형과 건물 윤곽이 다시 계산됩니다.
@@ -50,7 +50,7 @@ python3 -m http.server 8000
 | `index.html`, `css/style.css` | 화면 구성 |
 | `js/astro.js` | 천문 계산 (항성시, 세차, 좌표 변환, 태양·달·행성 위치) |
 | `js/terrain.js` | 지형 고도 조회와 지평선 윤곽 계산, 시간대·구름양·지명 조회 |
-| `js/buildings.js` | OpenStreetMap 건물 조회와 건물 윤곽 계산 |
+| `js/buildings.js` | 건물 조회(OpenFreeMap 벡터 타일 해석, Overpass)와 건물 윤곽 계산 |
 | `js/sky.js` | 렌더러 (WebGL 하늘·지형 + Canvas 별·라벨, 스테레오 투영) |
 | `js/app.js` | 입력, 지도, 조작, 정보창 |
 | `data/sky-data.js` | 별·별자리·은하수 자료 (`tools/build_data.py`로 생성) |
@@ -68,7 +68,7 @@ python3 tools/build_data.py package/data data/sky-data.js
 - 별·별자리·은하수 자료: [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3, Olaf Frohn) — `data/LICENSE-d3-celestial`
 - 지형 고도: [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Mapzen, SRTM·GMTED·ETOPO1 등)
 - 시간대·날씨: [Open-Meteo](https://open-meteo.com/)
-- 건물: [OpenStreetMap](https://www.openstreetmap.org/copyright) (Overpass API, ODbL)
+- 건물: [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL) — 가까운 건물은 [OpenFreeMap](https://openfreemap.org/) 벡터 타일, 먼 고층 건물은 Overpass API
 - 지명 검색: [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org/)
 - 위성 사진: Esri World Imagery, 지도: OpenStreetMap
 - 지도 라이브러리: [Leaflet](https://leafletjs.com/) (BSD-2)
