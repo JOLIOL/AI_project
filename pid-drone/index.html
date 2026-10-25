@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PID 드론 호버링</title>
+<style>
+:root {
+  --bg: #0e1320; --panel: #161d2d; --panel2: #1d2639; --line: #2b3651;
+  --text: #e7ecf6; --muted: #8e9ab3; --accent: #4da3ff;
+  --ok: #38c98a; --bad: #ff5d6c; --warn: #ffc83d;
+  --p: #ff8a4c; --i: #b98cff; --d: #3fd0c9;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #eef1f6; --panel: #ffffff; --panel2: #f3f5f9; --line: #d5dbe6;
+    --text: #1b2333; --muted: #5d6880; --accent: #1f6fd1;
+    --ok: #1a9e63; --bad: #d63445; --warn: #c98600;
+    --p: #e0662a; --i: #8457e0; --d: #12a39c;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 19px; margin: 0; }
+header .sub { color: var(--muted); font-size: 13px; }
+button, select, input { font: inherit; color: inherit; }
+.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr) 360px; gap: 12px; padding: 12px; align-items: start; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.card h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+.stack { display: grid; gap: 12px; }
+
+#missionList { display: grid; gap: 4px; }
+#missionList button { display: flex; justify-content: space-between; align-items: center; gap: 6px; width: 100%;
+  text-align: left; padding: 7px 9px; border-radius: 8px; border: 1px solid transparent; background: transparent; cursor: pointer; font-size: 13px; }
+#missionList button:hover:not(:disabled) { background: var(--panel2); }
+#missionList button.cur { border-color: var(--accent); background: var(--panel2); }
+#missionList button:disabled { color: var(--muted); opacity: .6; cursor: not-allowed; }
+.stars { color: var(--warn); letter-spacing: 1px; font-size: 12px; white-space: nowrap; }
+.stars .dim { color: var(--line); }
+
+#sceneWrap { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+#scene { display: block; width: 100%; height: 560px; cursor: crosshair; touch-action: none; }
+#hud { position: absolute; left: 10px; top: 10px; background: rgba(10, 14, 24, .62); color: #e7ecf6;
+  padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.55; font-variant-numeric: tabular-nums; pointer-events: none; }
+#banner { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px;
+  background: rgba(10, 14, 24, .7); color: #fff; font-size: 13px; font-weight: 600; pointer-events: none; white-space: nowrap; }
+#banner:empty { display: none; }
+
+#missionTitle { font-size: 18px; margin: 0 0 4px; }
+#missionDesc { margin: 0; line-height: 1.55; }
+#goals { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+.slider { display: grid; grid-template-columns: 34px minmax(0, 1fr) 54px; gap: 8px; align-items: center; margin: 6px 0; }
+.slider label { font-weight: 700; font-family: ui-monospace, monospace; }
+.slider input[type=range] { width: 100%; }
+.slider output { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+.slider.off { opacity: .35; }
+.slider.off input { pointer-events: none; }
+.lp { color: var(--p); } .li { color: var(--i); } .ld { color: var(--d); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; }
+.check[hidden] { display: none; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { padding: 8px 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel2); cursor: pointer; font-weight: 600; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.small { font-size: 12px; color: var(--muted); }
+
+#bars { display: grid; gap: 4px; margin-top: 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.bar { display: grid; grid-template-columns: 40px minmax(0, 1fr) 54px; gap: 6px; align-items: center; }
+.bar .track { position: relative; height: 10px; background: var(--panel2); border-radius: 5px; overflow: hidden; }
+.bar .track::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted); }
+.bar .fill { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
+.bar span:last-child { text-align: right; }
+
+#chart { display: block; width: 100%; height: 220px; }
+#result table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+#result td, #result th { padding: 5px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+#result th { color: var(--muted); font-weight: 600; font-size: 12px; }
+#result td.v { text-align: right; font-variant-numeric: tabular-nums; }
+#result .good { color: var(--ok); font-weight: 700; }
+#result .badc { color: var(--bad); font-weight: 700; }
+#result .head { font-size: 16px; font-weight: 700; }
+#result .lesson { margin-top: 8px; font-size: 13px; color: var(--muted); line-height: 1.55; }
+details { font-size: 13px; line-height: 1.6; }
+summary { cursor: pointer; color: var(--muted); }
+details p { margin: 6px 0; }
+
+@media (max-width: 1150px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 360px; }
+  #missionCard { grid-column: 1 / -1; }
+  #missionList { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+}
+@media (max-width: 800px) {
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
+  #missionList { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  #scene { height: 420px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚁 PID 드론 호버링</h1>
+  <span class="sub">P·I·D 게인을 조절해 드론을 목표 높이에 정확히 띄우세요</span>
+</header>
+
+<div class="layout">
+  <section class="card" id="missionCard">
+    <h2>미션</h2>
+    <div id="missionList"></div>
+  </section>
+
+  <main class="stack">
+    <div id="sceneWrap">
+      <canvas id="scene"></canvas>
+      <div id="hud"></div>
+      <div id="banner"></div>
+    </div>
+    <div class="card">
+      <h2>고도와 추력 그래프</h2>
+      <canvas id="chart"></canvas>
+      <div class="small">위: 고도(파란 선)와 목표(점선), 허용 범위(띠) · 아래: 모터 추력</div>
+    </div>
+  </main>
+
+  <aside class="stack">
+    <div class="card">
+      <h3 id="missionTitle"></h3>
+      <p id="missionDesc"></p>
+      <ul id="goals"></ul>
+    </div>
+    <div class="card">
+      <h2>제어기 게인</h2>
+      <div class="slider" id="sP"><label class="lp" for="kp">Kp</label><input type="range" id="kp" min="0" max="20" step="0.1"><output id="kpv"></output></div>
+      <div class="slider" id="sI"><label class="li" for="ki">Ki</label><input type="range" id="ki" min="0" max="10" step="0.05"><output id="kiv"></output></div>
+      <div class="slider" id="sD"><label class="ld" for="kd">Kd</label><input type="range" id="kd" min="0" max="10" step="0.05"><output id="kdv"></output></div>
+      <label class="check" id="awRow"><input type="checkbox" id="aw"> 적분 와인드업 방지 (추력이 한계일 때 적분 멈춤)</label>
+      <div class="slider" id="sF"><label for="df" title="D 필터">필터</label><input type="range" id="df" min="0" max="0.95" step="0.01"><output id="dfv"></output></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn primary" id="runBtn">▶ 비행 시작</button>
+        <button class="btn" id="resetBtn">↺ 리셋</button>
+        <button class="btn" id="speedBtn" title="재생 속도">1×</button>
+      </div>
+      <div class="row" id="freeBtns" style="margin-top:8px" hidden>
+        <button class="btn" id="gustBtn">💨 돌풍</button>
+        <button class="btn" id="loadBtn">📦 짐 싣기</button>
+        <button class="btn" id="noiseBtn">📡 센서 노이즈 끔</button>
+      </div>
+      <div id="bars"></div>
+    </div>
+    <div class="card" id="result"></div>
+    <div class="card">
+      <details>
+        <summary>PID 제어가 뭔가요?</summary>
+        <p>오차 e = 목표 높이 − 현재 높이 일 때, 모터 추력 u = <b class="lp">Kp·e</b> + <b class="li">Ki·∫e dt</b> + <b class="ld">Kd·(−dh/dt)</b> 입니다.</p>
+        <p><b class="lp">P(비례)</b>: 멀리 있을수록 세게 밉니다. 크게 하면 빨라지지만 출렁입니다. 중력 때문에 P만으로는 목표보다 조금 아래에서 멈춥니다.</p>
+        <p><b class="li">I(적분)</b>: 오차가 쌓이면 힘을 더해 남은 처짐을 없앱니다. 너무 크면 느리게 크게 출렁입니다.</p>
+        <p><b class="ld">D(미분)</b>: 빠르게 움직이면 브레이크를 겁니다. 출렁임을 잡아 주지만 센서 노이즈를 키웁니다.</p>
+        <p>드론: 질량 1 kg, 중력 9.81 N, 최대 추력 25 N, 모터 반응 지연 0.08 s, 공기 저항이 있습니다. 제어기는 50 Hz로 동작합니다.</p>
+      </details>
+    </div>
+  </aside>
+</div>
+
+<script>
+'use strict';
+
+// ---------- 물리 상수 ----------
+const G = 9.81, DRAG = 0.35, TAU = 0.08, CTRL_DT = 0.02, SUB = 4, Y_MAX = 30;
+
+// ---------- 미션 ----------
+const step = (t0, a, b) => t => (t < t0 ? a : b);
+const MISSIONS = [
+  { id: 'p', title: 'P 제어로 이륙', avail: 'P',
+    desc: '먼저 비례(P) 제어만 써 봅니다. Kp를 올려 드론을 10 m 높이까지 띄워 보세요.',
+    duration: 12, setpoint: () => 10,
+    checks: [{ m: 'rise', max: 3, label: '9 m 도달 시간', unit: 's' }],
+    stars: [47, 55],
+    lesson: '목표 근처에서 계속 출렁이고, 평균 높이가 10 m보다 낮지요? P만으로는 진동을 잡지 못하고, 중력 때문에 처짐(정상상태 오차)이 남습니다. 다음 미션에서 D로 출렁임을 잡아 봅시다.' },
+  { id: 'pd', title: '출렁임 잡기 (PD)', avail: 'PD',
+    desc: '미분(D) 제어는 움직이는 속도에 브레이크를 겁니다. 오버슈트 없이 부드럽게 올라가게 만드세요.',
+    duration: 12, setpoint: () => 10, band: 1.5,
+    checks: [{ m: 'overshoot', max: 5, label: '오버슈트', unit: '%' },
+             { m: 'settle', max: 6, label: '±1.5 m 안에 들어온 시간', unit: 's' }],
+    stars: [17, 21],
+    lesson: '출렁임은 사라졌지만 여전히 목표보다 조금 아래(약 9.81/Kp m)에 떠 있습니다. 이 처짐은 적분(I)으로 없앨 수 있습니다.' },
+  { id: 'pid', title: '처짐 없애기 (PID)', avail: 'PID',
+    desc: '적분(I) 제어는 쌓인 오차만큼 힘을 더합니다. 정확히 10 m에 멈추게 하세요.',
+    duration: 20, setpoint: () => 10, band: 0.2,
+    checks: [{ m: 'overshoot', max: 15, label: '오버슈트', unit: '%' },
+             { m: 'settle', max: 12, label: '±0.2 m 안에 들어온 시간', unit: 's' },
+             { m: 'sse', max: 0.05, label: '마지막 3초 평균 오차', unit: 'm' }],
+    stars: [11, 14],
+    lesson: '이제 PID 제어기를 완성했습니다! 실제 드론·모터·온도 조절기 대부분이 이 구조를 씁니다.' },
+  { id: 'gust', title: '돌풍 버티기', avail: 'PID',
+    desc: '10초에 아래로 누르는 강한 돌풍(12 N, 2초)이 붑니다. 높이를 최대한 지키세요.',
+    duration: 22, setpoint: () => 10, band: 0.2,
+    disturb: t => (t >= 10 && t < 12 ? -12 : 0), distAt: 10,
+    checks: [{ m: 'dev', max: 1.2, label: '돌풍 때 최대 이탈', unit: 'm' },
+             { m: 'sse', max: 0.05, label: '마지막 3초 평균 오차', unit: 'm' }],
+    stars: [16, 21],
+    lesson: '외란을 이겨내려면 P와 D가 즉시 반응하고, I가 남은 오차를 천천히 지웁니다. 게인이 클수록 덜 밀리지만 너무 크면 불안정해집니다.' },
+  { id: 'load', title: '택배 싣기', avail: 'PID',
+    desc: '10초에 0.8 kg 짐을 매답니다. 무거워져도 높이를 유지하세요.',
+    duration: 22, setpoint: () => 10, band: 0.2,
+    mass: t => (t >= 10 ? 1.8 : 1), distAt: 10,
+    checks: [{ m: 'dev', max: 1.5, label: '짐을 단 뒤 최대 이탈', unit: 'm' },
+             { m: 'sse', max: 0.05, label: '마지막 3초 평균 오차', unit: 'm' }],
+    stars: [18, 22],
+    lesson: '질량이 바뀌어 필요한 추력이 커져도, 적분 항이 알아서 새 균형점을 찾아 줍니다. 이것이 I 제어의 힘입니다.' },
+  { id: 'windup', title: '적분 와인드업', avail: 'PID', aw: true,
+    desc: '이번 드론은 모터가 약합니다(최대 15 N). 25 m까지 크게 올라갈 때 적분이 과하게 쌓이는 것을 막으세요.',
+    duration: 24, setpoint: () => 25, band: 0.3, umax: 15,
+    checks: [{ m: 'overshoot', max: 4, label: '오버슈트', unit: '%' },
+             { m: 'sse', max: 0.05, label: '마지막 3초 평균 오차', unit: 'm' }],
+    stars: [65, 68],
+    lesson: '추력이 한계에 걸려 있는 동안 적분이 계속 쌓이면, 목표에 도착한 뒤에도 그 힘이 남아 크게 넘어갑니다. 와인드업 방지는 실제 제어기에 꼭 들어가는 기능입니다.' },
+  { id: 'noise', title: '센서 노이즈', avail: 'PID', filter: true,
+    desc: '고도 센서에 잡음이 섞입니다. D 항이 잡음을 키워 모터가 떨리니, 필터와 게인을 조절해 조용하고 정확하게 떠 있게 하세요.',
+    duration: 20, setpoint: () => 10, band: 0.25, noise: 0.03,
+    checks: [{ m: 'jitter', max: 2, label: '모터 떨림 (추력 변화 RMS)', unit: 'N' },
+             { m: 'overshoot', max: 15, label: '오버슈트', unit: '%' },
+             { m: 'sse', max: 0.1, label: '마지막 3초 평균 오차', unit: 'm' }],
+    stars: [12, 17],
+    lesson: '미분은 잡음을 크게 부풀립니다. 그래서 실제 PID에는 D 항에 저역통과 필터를 붙입니다. 필터가 너무 세면 반응이 늦어지는 것도 확인해 보세요.' },
+  { id: 'free', title: '자유 비행', avail: 'PID', aw: true, filter: true, free: true,
+    desc: '화면을 눌러 목표 높이를 바꾸고, 돌풍과 짐을 마음대로 더해 보세요. 그래프는 최근 20초를 보여 줍니다.',
+    duration: 20, setpoint: () => 10, checks: [], stars: [0, 0] },
+];
+
+// ---------- 저장 ----------
+const STORE_KEY = 'pid-drone.v1';
+function loadProgress() {
+  try {
+    const p = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (p && typeof p === 'object') return { stars: p.stars || {}, gains: p.gains || {}, last: p.last | 0 };
+  } catch (e) { /* 저장소를 못 쓰면 새로 시작 */ }
+  return { stars: {}, gains: {}, last: 0 };
+}
+const progress = loadProgress();
+function saveProgress() { try { localStorage.setItem(STORE_KEY, JSON.stringify(progress)); } catch (e) { /* 무시 */ } }
+
+// ---------- 시뮬레이션 ----------
+function gauss() { let u = 0; while (!u) u = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random()); }
+
+function makeSim(M) {
+  return { M, t: 0, y: 0, v: 0, u: 0, cmd: 0, I: 0, dF: 0, prev: null, terms: [0, 0, 0],
+    trace: [], free: { r: 10, gustUntil: -1, load: false, noise: false } };
+}
+function mission(sim) {
+  const M = sim.M, t = sim.t;
+  if (M.free) {
+    const f = sim.free;
+    return { r: f.r, m: f.load ? 1.8 : 1, fd: t < f.gustUntil ? -12 : 0, noise: f.noise ? 0.03 : 0, umax: 25 };
+  }
+  return { r: M.setpoint(t), m: M.mass ? M.mass(t) : 1, fd: M.disturb ? M.disturb(t) : 0, noise: M.noise || 0, umax: M.umax || 25 };
+}
+// 제어 주기(20 ms) 한 번 + 물리 적분 SUB번
+function tick(sim, g) {
+  const env = mission(sim);
+  const meas = sim.y + (env.noise ? env.noise * gauss() : 0);
+  const e = env.r - meas;
+  const dRaw = sim.prev == null ? 0 : -(meas - sim.prev) / CTRL_DT;
+  sim.prev = meas;
+  sim.dF = g.f * sim.dF + (1 - g.f) * dRaw;
+  const P = g.kp * e, D = g.kd * sim.dF;
+  let I = g.ki * sim.I;
+  const raw = P + I + D;
+  const cmd = Math.min(Math.max(raw, 0), env.umax);
+  // 와인드업 방지: 추력이 한계에 걸린 채 같은 방향으로 더 밀려 할 때는 적분하지 않음
+  const saturated = cmd !== raw && Math.sign(e) === Math.sign(raw - cmd);
+  if (!(g.aw && saturated)) sim.I = Math.max(-500, Math.min(500, sim.I + e * CTRL_DT));
+  sim.cmd = cmd;
+  sim.terms = [P, I, D];
+  const dt = CTRL_DT / SUB;
+  for (let k = 0; k < SUB; k++) {
+    sim.u += (cmd - sim.u) * dt / TAU;
+    const a = (sim.u - env.m * G - DRAG * sim.v + env.fd) / env.m;
+    sim.v += a * dt;
+    sim.y += sim.v * dt;
+    if (sim.y <= 0) { sim.y = 0; if (sim.v < 0) sim.v = 0; }
+  }
+  sim.t += CTRL_DT;
+  sim.trace.push({ t: sim.t, y: sim.y, r: env.r, u: sim.u, cmd, fd: env.fd, m: env.m });
+}
+
+function analyze(M, tr) {
+  const r = M.setpoint(0), band = M.band || 0.2;
+  const res = {};
+  const end = tr[tr.length - 1].t;
+  let maxY = 0, rise = Infinity, lastOut = 0, iae = 0, dev = 0;
+  for (const s of tr) {
+    maxY = Math.max(maxY, s.y);
+    if (rise === Infinity && s.y >= 0.9 * r) rise = s.t;
+    if (Math.abs(s.y - r) > band) lastOut = s.t;
+    iae += Math.abs(r - s.y) * CTRL_DT;
+    if (M.distAt != null && s.t >= M.distAt && s.t < M.distAt + 6) dev = Math.max(dev, Math.abs(s.y - r));
+  }
+  const tail = tr.filter(s => s.t > end - 3);
+  res.rise = rise;
+  res.overshoot = Math.max(0, (maxY - r) / r * 100);
+  res.settle = lastOut >= end - CTRL_DT ? Infinity : lastOut;
+  res.sse = tail.reduce((a, s) => a + Math.abs(s.y - r), 0) / tail.length;
+  res.dev = dev;
+  // 추력 명령의 떨림: 0.5초 이동평균에서 벗어난 정도의 RMS (마지막 8초)
+  const cmds = tr.filter(s => s.t > end - 8).map(s => s.cmd), W = 25;
+  let sq = 0, n = 0;
+  for (let i = W; i < cmds.length - W; i++) {
+    let avg = 0;
+    for (let j = i - W; j <= i + W; j++) avg += cmds[j];
+    avg /= 2 * W + 1;
+    sq += (cmds[i] - avg) ** 2; n++;
+  }
+  res.jitter = n ? Math.sqrt(sq / n) : 0;
+  res.iae = iae;
+  return res;
+}
+
+// ---------- 상태 ----------
+const $ = id => document.getElementById(id);
+const state = { idx: 0, sim: null, running: false, done: false, speed: 1, result: null, acc: 0, lastFrame: 0, target: null };
+const cur = () => MISSIONS[state.idx];
+const unlocked = i => i === 0 || progress.stars[MISSIONS[i - 1].id] > 0 || progress.stars[MISSIONS[i].id] > 0
+  || (MISSIONS[i].free && Object.keys(progress.stars).length >= 3);
+const DEFAULT_GAINS = { kp: 2, ki: 0, kd: 0, aw: false, f: 0 };
+
+function gains() {
+  const M = cur();
+  return {
+    kp: M.avail.includes('P') ? +$('kp').value : 0,
+    ki: M.avail.includes('I') ? +$('ki').value : 0,
+    kd: M.avail.includes('D') ? +$('kd').value : 0,
+    aw: !!(M.aw && $('aw').checked),
+    f: M.filter ? +$('df').value : 0,
+  };
+}
+function saveGains() {
+  progress.gains[cur().id] = { kp: +$('kp').value, ki: +$('ki').value, kd: +$('kd').value, aw: $('aw').checked, f: +$('df').value };
+  saveProgress();
+}
+
+function loadMission(i) {
+  state.idx = i;
+  progress.last = i;
+  const M = cur();
+  const g = progress.gains[M.id] || (i > 0 && progress.gains[MISSIONS[i - 1].id]) || DEFAULT_GAINS;
+  $('kp').value = g.kp; $('ki').value = g.ki; $('kd').value = g.kd; $('aw').checked = !!g.aw; $('df').value = g.f || 0;
+  $('sP').classList.toggle('off', !M.avail.includes('P'));
+  $('sI').classList.toggle('off', !M.avail.includes('I'));
+  $('sD').classList.toggle('off', !M.avail.includes('D'));
+  $('awRow').hidden = !M.aw;
+  $('sF').hidden = !M.filter;
+  $('freeBtns').hidden = !M.free;
+  $('runBtn').hidden = !!M.free;
+  $('missionTitle').textContent = `${i + 1}. ${M.title}`;
+  $('missionDesc').textContent = M.desc;
+  $('goals').innerHTML = M.checks.map(c => `<li>${c.label} ≤ ${c.max}${c.unit === '%' ? '%' : ' ' + c.unit}</li>`).join('')
+    + (M.free ? '' : `<li>성공하면 오차 넓이(∫|e|dt)가 작을수록 별을 더 받습니다</li>`);
+  showOutputs();
+  reset();
+  renderMissionList();
+  saveProgress();
+}
+
+function reset() {
+  state.sim = makeSim(cur());
+  $('loadBtn').textContent = '📦 짐 싣기';
+  $('noiseBtn').textContent = '📡 센서 노이즈 끔';
+  state.running = !!cur().free;
+  state.done = false;
+  state.result = null;
+  state.acc = 0;
+  renderResult();
+  updateRunBtn();
+}
+
+function finish() {
+  state.running = false;
+  state.done = true;
+  const M = cur();
+  const r = analyze(M, state.sim.trace);
+  const checks = M.checks.map(c => ({ ...c, val: r[c.m], ok: r[c.m] <= c.max }));
+  const pass = checks.every(c => c.ok);
+  let stars = 0;
+  if (pass) stars = r.iae <= M.stars[0] ? 3 : r.iae <= M.stars[1] ? 2 : 1;
+  state.result = { r, checks, pass, stars };
+  if (stars > (progress.stars[M.id] || 0)) progress.stars[M.id] = stars;
+  saveGains();
+  renderMissionList();
+  renderResult();
+  updateRunBtn();
+}
+
+// ---------- 화면: 결과·목록·출력 ----------
+function starsHTML(k) { return `<span class="stars">${'★'.repeat(k)}<span class="dim">${'★'.repeat(3 - k)}</span></span>`; }
+function fmt(v, unit) {
+  if (v === Infinity) return '도달 못 함';
+  return unit === '%' ? v.toFixed(1) + '%' : v.toFixed(unit === 'm' ? 2 : 1) + ' ' + unit;
+}
+function renderResult() {
+  const M = cur(), el = $('result');
+  if (M.free) {
+    el.innerHTML = '<div class="small">자유 비행 중입니다. 장면을 눌러 목표 높이를 바꿔 보세요.</div>';
+    return;
+  }
+  if (!state.result) {
+    el.innerHTML = state.running
+      ? '<div class="small">비행 중… 게인을 바꾸면 바로 반영됩니다.</div>'
+      : '<div class="small">게인을 정하고 ▶ 비행 시작을 누르세요. 결과는 여기에 나옵니다.</div>';
+    return;
+  }
+  const { r, checks, pass, stars } = state.result;
+  const last = state.idx === MISSIONS.length - 2;
+  el.innerHTML = `<div class="head" style="color:var(--${pass ? 'ok' : 'bad'})">${pass ? '성공! ' + starsHTML(stars) : '아쉬워요, 다시 도전!'}</div>`
+    + '<table><tr><th>항목</th><th style="text-align:right">결과</th><th style="text-align:right">목표</th><th></th></tr>'
+    + checks.map(c => `<tr><td>${c.label}</td><td class="v">${fmt(c.val, c.unit)}</td><td class="v">≤ ${c.max}${c.unit === '%' ? '%' : ' ' + c.unit}</td>`
+      + `<td class="${c.ok ? 'good' : 'badc'}">${c.ok ? '✓' : '✗'}</td></tr>`).join('')
+    + `<tr><td>오차 넓이 ∫|e|dt</td><td class="v">${r.iae.toFixed(1)}</td><td class="v">★★★ ≤ ${M.stars[0]}</td><td></td></tr></table>`
+    + (pass ? `<div class="lesson">💡 ${M.lesson}</div>` : `<div class="lesson">${hintFor(checks)}</div>`)
+    + (pass && state.idx < MISSIONS.length - 1 ? `<div class="row" style="margin-top:8px"><button class="btn primary" id="nextBtn">${last ? '자유 비행 열기 →' : '다음 미션 →'}</button></div>` : '');
+  const nb = $('nextBtn');
+  if (nb) nb.onclick = () => loadMission(state.idx + 1);
+}
+function hintFor(checks) {
+  const bad = checks.find(c => !c.ok);
+  return {
+    rise: '💡 Kp를 키우면 더 세게 밀어 올립니다.',
+    overshoot: '💡 Kd를 키워 브레이크를 걸거나, Kp·Ki를 줄여 보세요.',
+    settle: cur().id === 'pd' ? '💡 처짐 9.81/Kp가 1.5 m보다 작아야 합니다. Kp를 키우고 Kd로 출렁임을 잡으세요.' : '💡 Ki를 키우면 남은 오차가 더 빨리 사라집니다. 출렁이면 Kd를 키우세요.',
+    sse: '💡 Ki가 너무 작거나, 아직 진동이 남아 있습니다.',
+    dev: '💡 Kp와 Kd를 키우면 외란에 덜 밀립니다.',
+    jitter: '💡 D 필터를 높이거나 Kd를 줄여 보세요.',
+  }[bad.m];
+}
+
+function renderMissionList() {
+  $('missionList').innerHTML = MISSIONS.map((M, i) => {
+    const s = progress.stars[M.id];
+    const right = s ? starsHTML(s) : unlocked(i) ? '' : '🔒';
+    return `<button data-i="${i}" class="${i === state.idx ? 'cur' : ''}" ${unlocked(i) ? '' : 'disabled'}><span>${i + 1}. ${M.title}</span>${right}</button>`;
+  }).join('');
+}
+
+function showOutputs() {
+  $('kpv').value = (+$('kp').value).toFixed(1);
+  $('kiv').value = (+$('ki').value).toFixed(2);
+  $('kdv').value = (+$('kd').value).toFixed(2);
+  $('dfv').value = (+$('df').value).toFixed(2);
+}
+function updateRunBtn() {
+  const b = $('runBtn');
+  b.textContent = state.running ? '⏸ 비행 중…' : state.done ? '▶ 다시 비행' : '▶ 비행 시작';
+  b.disabled = state.running;
+}
+
+function renderBars() {
+  const sim = state.sim, [P, I, D] = sim.terms, umax = mission(sim).umax;
+  const row = (name, cls, v) => {
+    const w = Math.min(Math.abs(v) / umax, 1) * 50;
+    const left = v >= 0 ? 50 : 50 - w;
+    return `<div class="bar"><span class="${cls}">${name}</span><div class="track"><div class="fill" style="left:${left}%;width:${w}%;background:var(--${cls.slice(1)})"></div></div><span>${v.toFixed(1)} N</span></div>`;
+  };
+  $('bars').innerHTML = row('P항', 'lp', P) + row('I항', 'li', I) + row('D항', 'ld', D)
+    + `<div class="bar"><span>추력</span><div class="track"><div class="fill" style="left:50%;width:${sim.u / umax * 50}%;background:var(--accent)"></div></div><span>${sim.u.toFixed(1)} N</span></div>`;
+}
+
+// ---------- 캔버스 ----------
+const scene = $('scene'), sctx = scene.getContext('2d');
+const chart = $('chart'), cctx = chart.getContext('2d');
+function fitCanvas(c, ctx) {
+  const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w: r.width, h: r.height };
+}
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+const clouds = Array.from({ length: 7 }, (_, i) => ({ x: Math.random(), y: 4 + i * 4 + Math.random() * 2, s: 0.6 + Math.random() * 0.8 }));
+const streaks = Array.from({ length: 40 }, () => ({ x: Math.random(), y: Math.random() }));
+let rotorPhase = 0;
+
+function drawScene(dtReal) {
+  const { w, h } = fitCanvas(scene, sctx);
+  const sim = state.sim, env = mission(sim);
+  const groundH = 46, top = 18;
+  const yToPx = y => h - groundH - (y / Y_MAX) * (h - groundH - top);
+
+  // 하늘
+  const sky = sctx.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#5aa7e8'); sky.addColorStop(1, '#cfe8fb');
+  sctx.fillStyle = sky; sctx.fillRect(0, 0, w, h);
+  // 구름
+  for (const c of clouds) {
+    c.x = (c.x + dtReal * 0.004 * c.s) % 1.2;
+    const cx = c.x * (w + 160) - 80, cy = yToPx(c.y);
+    sctx.fillStyle = 'rgba(255,255,255,.75)';
+    sctx.beginPath();
+    sctx.ellipse(cx, cy, 34 * c.s, 12 * c.s, 0, 0, Math.PI * 2);
+    sctx.ellipse(cx + 22 * c.s, cy - 7 * c.s, 22 * c.s, 12 * c.s, 0, 0, Math.PI * 2);
+    sctx.ellipse(cx - 20 * c.s, cy - 4 * c.s, 18 * c.s, 9 * c.s, 0, 0, Math.PI * 2);
+    sctx.fill();
+  }
+  // 눈금
+  sctx.font = '12px system-ui, sans-serif';
+  // 눈금은 오른쪽 가장자리에 (왼쪽 위는 정보창 자리)
+  sctx.textAlign = 'right';
+  for (let m = 0; m <= Y_MAX; m += 5) {
+    const py = yToPx(m);
+    sctx.strokeStyle = 'rgba(255,255,255,.5)'; sctx.lineWidth = 1;
+    sctx.beginPath(); sctx.moveTo(w - 12, py); sctx.lineTo(w, py); sctx.stroke();
+    sctx.fillStyle = 'rgba(20,40,70,.75)';
+    sctx.fillText(m + ' m', w - 16, py + 4);
+  }
+  // 허용 범위와 목표선
+  const band = cur().band || 0.2, ry = yToPx(env.r);
+  if (!cur().free) {
+    sctx.fillStyle = 'rgba(56,201,138,.18)';
+    sctx.fillRect(0, yToPx(env.r + band), w, yToPx(env.r - band) - yToPx(env.r + band));
+  }
+  sctx.strokeStyle = '#1a9e63'; sctx.lineWidth = 2; sctx.setLineDash([10, 7]);
+  sctx.beginPath(); sctx.moveTo(0, ry); sctx.lineTo(w, ry); sctx.stroke(); sctx.setLineDash([]);
+  sctx.fillStyle = '#0d6b42'; sctx.textAlign = 'right'; sctx.font = 'bold 13px system-ui, sans-serif';
+  sctx.fillText(`목표 ${env.r.toFixed(1)} m`, w - 60, ry - 6);
+  if (state.target != null) {
+    sctx.strokeStyle = 'rgba(31,111,209,.6)'; sctx.setLineDash([4, 4]);
+    const ty = yToPx(state.target);
+    sctx.beginPath(); sctx.moveTo(0, ty); sctx.lineTo(w, ty); sctx.stroke(); sctx.setLineDash([]);
+  }
+  // 돌풍
+  if (env.fd < 0) {
+    sctx.strokeStyle = 'rgba(255,255,255,.85)'; sctx.lineWidth = 2;
+    for (const s of streaks) {
+      s.y = (s.y + dtReal * 1.6) % 1; s.x = (s.x + dtReal * 0.05) % 1;
+      const sx = s.x * w, sy = s.y * (h - groundH);
+      sctx.beginPath(); sctx.moveTo(sx, sy); sctx.lineTo(sx + 6, sy + 26); sctx.stroke();
+    }
+  }
+  // 땅
+  sctx.fillStyle = '#5fae54'; sctx.fillRect(0, h - groundH, w, groundH);
+  sctx.fillStyle = '#4a9441'; sctx.fillRect(0, h - groundH, w, 6);
+  // 그림자
+  const dx = w * 0.55, dy = yToPx(sim.y);
+  const sh = Math.max(0.15, 1 - sim.y / Y_MAX);
+  sctx.fillStyle = `rgba(0,0,0,${0.25 * sh})`;
+  sctx.beginPath(); sctx.ellipse(dx, h - groundH + 10, 46 * sh + 10, 6 * sh + 2, 0, 0, Math.PI * 2); sctx.fill();
+  drawDrone(dx, Math.max(dy, 30), sim, env, dtReal);
+  if (dy < 30) {
+    sctx.fillStyle = '#b3261e'; sctx.textAlign = 'center'; sctx.font = 'bold 13px system-ui, sans-serif';
+    sctx.fillText(`▲ 화면 위 ${sim.y.toFixed(1)} m`, dx, 16);
+  }
+
+  $('hud').innerHTML = `시간 ${sim.t.toFixed(1)} s<br>고도 <b>${sim.y.toFixed(2)} m</b><br>오차 ${(env.r - sim.y).toFixed(2)} m<br>속도 ${sim.v.toFixed(2)} m/s`;
+  const banner = env.fd < 0 ? '💨 돌풍!' : env.m > 1 ? '📦 짐 0.8 kg 매달림' : '';
+  if ($('banner').textContent !== banner) $('banner').textContent = banner;
+}
+
+function drawDrone(x, y, sim, env, dtReal) {
+  const thr = sim.u / 25;
+  rotorPhase += dtReal * (8 + thr * 60);
+  // 바람(내리 흐름)
+  if (sim.u > 1) {
+    sctx.strokeStyle = `rgba(255,255,255,${0.25 + thr * 0.5})`; sctx.lineWidth = 2;
+    for (const ox of [-44, 44]) for (let k = 0; k < 3; k++) {
+      const off = ((rotorPhase * 6 + k * 13) % 39);
+      sctx.beginPath(); sctx.moveTo(x + ox - 8 + k * 8, y + 4 + off); sctx.lineTo(x + ox - 8 + k * 8, y + 14 + off * (0.5 + thr)); sctx.stroke();
+    }
+  }
+  // 짐
+  if (env.m > 1) {
+    sctx.strokeStyle = '#555'; sctx.lineWidth = 1.5;
+    sctx.beginPath(); sctx.moveTo(x, y + 10); sctx.lineTo(x, y + 30); sctx.stroke();
+    sctx.fillStyle = '#c58b4a'; sctx.fillRect(x - 13, y + 30, 26, 20);
+    sctx.strokeStyle = '#8d5f2c'; sctx.strokeRect(x - 13, y + 30, 26, 20);
+    sctx.beginPath(); sctx.moveTo(x, y + 30); sctx.lineTo(x, y + 50); sctx.stroke();
+  }
+  // 다리
+  sctx.strokeStyle = '#2b2f3a'; sctx.lineWidth = 3;
+  sctx.beginPath(); sctx.moveTo(x - 18, y + 6); sctx.lineTo(x - 24, y + 18); sctx.moveTo(x + 18, y + 6); sctx.lineTo(x + 24, y + 18); sctx.stroke();
+  // 팔
+  sctx.lineWidth = 5;
+  sctx.beginPath(); sctx.moveTo(x - 44, y - 6); sctx.lineTo(x + 44, y - 6); sctx.stroke();
+  // 로터
+  for (const ox of [-44, 44]) {
+    sctx.fillStyle = '#2b2f3a'; sctx.fillRect(x + ox - 4, y - 12, 8, 8);
+    const span = 26 * Math.abs(Math.cos(rotorPhase + (ox > 0 ? 1 : 0)));
+    sctx.fillStyle = `rgba(40,45,60,${0.2 + 0.25 * thr})`;
+    sctx.beginPath(); sctx.ellipse(x + ox, y - 13, 28, 4, 0, 0, Math.PI * 2); sctx.fill();
+    sctx.strokeStyle = '#1b1e26'; sctx.lineWidth = 3;
+    sctx.beginPath(); sctx.moveTo(x + ox - span, y - 13); sctx.lineTo(x + ox + span, y - 13); sctx.stroke();
+  }
+  // 몸체
+  sctx.fillStyle = '#e9edf5'; sctx.strokeStyle = '#2b2f3a'; sctx.lineWidth = 2;
+  sctx.beginPath(); sctx.roundRect(x - 22, y - 10, 44, 18, 7); sctx.fill(); sctx.stroke();
+  const err = Math.abs(env.r - sim.y);
+  sctx.fillStyle = err < (cur().band || 0.2) ? '#38c98a' : err < 1.5 ? '#ffc83d' : '#ff5d6c';
+  sctx.beginPath(); sctx.arc(x, y - 1, 4, 0, Math.PI * 2); sctx.fill();
+}
+
+function drawChart() {
+  const { w, h } = fitCanvas(chart, cctx);
+  const sim = state.sim, M = cur();
+  const text = css('--muted'), line = css('--line');
+  cctx.clearRect(0, 0, w, h);
+  const L = 36, R = 8, T = 8, split = Math.round(h * 0.68), B = 20;
+  const span = M.duration;
+  const t1 = M.free ? Math.max(span, sim.t) : span, t0 = t1 - span;
+  const tx = t => L + (t - t0) / span * (w - L - R);
+  const tr = sim.trace;
+  const yTop = Math.max(M.free ? 20 : M.setpoint(0) * 1.5, ...tr.slice(-2000).map(s => s.y * 1.1)) || 15;
+  const ay = y => T + (1 - y / yTop) * (split - T - 6);
+  const umax = mission(sim).umax;
+  const uy = u => h - B - u / umax * (h - B - split - 6);
+
+  cctx.font = '11px system-ui, sans-serif'; cctx.fillStyle = text; cctx.strokeStyle = line; cctx.lineWidth = 1;
+  cctx.textAlign = 'right';
+  const stepY = yTop > 30 ? 10 : 5;
+  for (let y = 0; y <= yTop; y += stepY) {
+    cctx.beginPath(); cctx.moveTo(L, ay(y)); cctx.lineTo(w - R, ay(y)); cctx.stroke();
+    cctx.fillText(y + 'm', L - 4, ay(y) + 4);
+  }
+  cctx.beginPath(); cctx.moveTo(L, uy(0)); cctx.lineTo(w - R, uy(0)); cctx.stroke();
+  cctx.fillText(umax + 'N', L - 4, uy(umax) + 4);
+  cctx.fillText('0', L - 4, uy(0) + 4);
+  cctx.textAlign = 'center';
+  for (let t = Math.ceil(t0 / 2) * 2; t <= t1; t += 2) cctx.fillText(t + 's', tx(t), h - 5);
+
+  if (M.distAt != null) {
+    cctx.fillStyle = 'rgba(255,200,61,.15)';
+    cctx.fillRect(tx(M.distAt), T, tx(Math.min(M.distAt + 2, t1)) - tx(M.distAt), h - B - T);
+  }
+  const vis = tr.filter(s => s.t >= t0);
+  if (!vis.length) return;
+  if (!M.free) {
+    const band = M.band || 0.2, r = M.setpoint(0);
+    cctx.fillStyle = 'rgba(56,201,138,.18)';
+    cctx.fillRect(L, ay(r + band), w - L - R, ay(r - band) - ay(r + band));
+  }
+  const path = (fy, color, width, dash, key) => {
+    cctx.strokeStyle = color; cctx.lineWidth = width; cctx.setLineDash(dash || []);
+    cctx.beginPath();
+    vis.forEach((s, i) => { const X = tx(s.t), Y = fy(s[key]); i ? cctx.lineTo(X, Y) : cctx.moveTo(X, Y); });
+    cctx.stroke(); cctx.setLineDash([]);
+  };
+  path(ay, css('--ok'), 1.5, [6, 4], 'r');
+  path(ay, css('--accent'), 2, null, 'y');
+  path(uy, css('--p'), 1.2, null, 'u');
+}
+
+// ---------- 루프 ----------
+function frame(now) {
+  const dtReal = Math.min(0.05, (now - (state.lastFrame || now)) / 1000);
+  state.lastFrame = now;
+  if (state.running) {
+    state.acc += dtReal * state.speed;
+    const g = gains();
+    while (state.acc >= CTRL_DT) {
+      state.acc -= CTRL_DT;
+      tick(state.sim, g);
+      if (!cur().free && state.sim.t >= cur().duration - 1e-9) { finish(); break; }
+    }
+    if (cur().free && state.sim.trace.length > 6000) state.sim.trace.splice(0, 1000);
+  }
+  drawScene(dtReal);
+  drawChart();
+  renderBars();
+  requestAnimationFrame(frame);
+}
+
+// ---------- 입력 ----------
+for (const id of ['kp', 'ki', 'kd', 'df']) $(id).addEventListener('input', () => { showOutputs(); saveGains(); });
+$('aw').addEventListener('change', saveGains);
+$('runBtn').onclick = () => {
+  reset();
+  state.running = true;
+  renderResult();
+  updateRunBtn();
+};
+$('resetBtn').onclick = () => { reset(); };
+$('speedBtn').onclick = () => {
+  state.speed = state.speed === 1 ? 2 : state.speed === 2 ? 4 : 1;
+  $('speedBtn').textContent = state.speed + '×';
+};
+$('missionList').addEventListener('click', e => {
+  const b = e.target.closest('button[data-i]');
+  if (b && !b.disabled) loadMission(+b.dataset.i);
+});
+scene.addEventListener('pointerdown', e => {
+  if (!cur().free) return;
+  const r = scene.getBoundingClientRect(), groundH = 46, top = 18;
+  const y = (r.height - groundH - (e.clientY - r.top)) / (r.height - groundH - top) * Y_MAX;
+  state.sim.free.r = Math.round(Math.min(Math.max(y, 0), Y_MAX) * 2) / 2;
+});
+$('gustBtn').onclick = () => { state.sim.free.gustUntil = state.sim.t + 2; };
+$('loadBtn').onclick = () => {
+  const f = state.sim.free;
+  f.load = !f.load;
+  $('loadBtn').textContent = f.load ? '📦 짐 내리기' : '📦 짐 싣기';
+};
+$('noiseBtn').onclick = () => {
+  const f = state.sim.free;
+  f.noise = !f.noise;
+  $('noiseBtn').textContent = f.noise ? '📡 센서 노이즈 켬' : '📡 센서 노이즈 끔';
+};
+
+loadMission(unlocked(progress.last) ? Math.min(progress.last, MISSIONS.length - 1) : 0);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
