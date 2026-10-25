@@ -138,13 +138,23 @@
       showStatus('지형 자료를 받지 못해 가상 지형을 표시합니다 (오프라인?)', 4000);
     });
 
+    state.buildingStatus = '건물 불러오는 중…';
     window.Buildings.load(lat, lon).then((data) => {
       if (token !== state.loadToken) return;
       state.buildingData = data;
+      const n = data.list.length;
+      state.buildingStatus = n ? `건물 ${n.toLocaleString()}개` : '주변에 등록된 건물 없음';
+      if (!data.nearOk || !data.farOk) state.buildingStatus += ' (일부만 받음)';
       applyEyeHeight();
-      if (data.list.length) showStatus(`주변 건물 ${data.list.length.toLocaleString()}개를 반영했습니다 (OpenStreetMap)`, 3000);
-    }).catch(() => {
-      if (token === state.loadToken) showStatus('건물 자료를 받지 못했습니다 (OpenStreetMap 서버 응답 없음)', 3500);
+      updateMeta();
+      showStatus(n ? `주변 건물 ${n.toLocaleString()}개를 반영했습니다 (OpenStreetMap)`
+        : 'OpenStreetMap에 이 주변 건물이 등록되어 있지 않습니다', 4000);
+    }).catch((e) => {
+      if (token !== state.loadToken) return;
+      console.warn('건물 자료 오류:', e);
+      state.buildingStatus = '건물 자료 실패';
+      updateMeta();
+      showStatus('건물 서버(OpenStreetMap Overpass)가 응답하지 않습니다. 잠시 후 "이 위치의 하늘 보기"를 다시 눌러 주세요', 6000);
     });
 
     window.Terrain.loadLocalInfo(lat, lon).then((info) => {
@@ -170,7 +180,7 @@
     const extra = Math.max(0, parseFloat($('eyeHeight').value) || 0);
     sky.eyeHeight = window.Terrain.EYE_HEIGHT_M + extra;
     if (state.baseProfile) sky.setProfile(window.Terrain.reprofile(state.baseProfile, extra));
-    sky.setBuildings(state.buildingData ? window.Buildings.profile(state.buildingData, sky.eyeHeight) : null);
+    sky.setBuildings(state.buildingData ? window.Buildings.profile(state.buildingData, sky.eyeHeight, state.baseProfile) : null);
     requestDraw();
     scheduleUrlUpdate();
   }
@@ -185,6 +195,7 @@
     const li = state.localInfo;
     if (li && li.cloudCover != null) parts.push(`현재 구름 ${li.cloudCover}%`);
     if (li && li.temperature != null) parts.push(`${li.temperature}°C`);
+    if (state.buildingStatus) parts.push(state.buildingStatus);
     $('placeMeta').textContent = parts.join(' · ');
     $('tzLabel').textContent = `(${state.tzName ? state.tzName + ', ' : ''}${formatOffset(state.offsetMin)})`;
   }

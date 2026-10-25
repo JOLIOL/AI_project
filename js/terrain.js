@@ -62,6 +62,7 @@
     const prof = emptyProfile();
     prof.observerElevation = h0;
     prof.grid = grid;
+    prof.distKm = DIST_KM;
     const eye = h0 + EYE_HEIGHT_M + extra;
     // 가장 낮은 지평선은 수평선의 강하각(dip)
     const dip = -Math.sqrt((2 * Math.max(eye, 1)) / (EARTH_R * 1000 / (1 - REFRACTION_K))) * 180 / Math.PI;
