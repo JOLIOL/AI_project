@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로렌츠 골프</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0b0e18; --panel: #131828; --panel2: #1a2135; --line: #283152;
+  --text: #e6e9f5; --muted: #8b93b3; --accent: #6aa8ff; --ok: #3ddc97; --bad: #ff6b81;
+  --pos: #ff6b6b; --neg: #5aa9ff; --gold: #ffcf4a; --e: #ffb74a; --b: #b48cff;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+button, input { font: inherit; color: inherit; }
+header { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+header h1 { margin: 0; font-size: 19px; }
+header .sub { color: var(--muted); font-size: 13px; }
+.layout { display: grid; grid-template-columns: 210px minmax(0, 1fr) 320px; gap: 12px; padding: 12px; align-items: start; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.card h2 { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
+.stack { display: grid; gap: 12px; }
+
+#levels { display: grid; gap: 4px; }
+#levels button { display: flex; justify-content: space-between; gap: 6px; align-items: center; width: 100%; text-align: left;
+  padding: 7px 9px; border-radius: 8px; border: 1px solid transparent; background: transparent; cursor: pointer; font-size: 13px; }
+#levels button:hover:not(:disabled) { background: var(--panel2); }
+#levels button.cur { border-color: var(--accent); background: var(--panel2); }
+#levels button:disabled { opacity: .5; cursor: not-allowed; }
+.stars { color: var(--gold); font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
+.stars .dim { color: var(--line); }
+
+#boardWrap { position: relative; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #070a12; }
+#board { display: block; width: 100%; height: auto; touch-action: none; user-select: none; }
+#msg { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); padding: 7px 14px; border-radius: 999px;
+  background: rgba(8, 10, 20, .8); border: 1px solid var(--line); font-size: 14px; font-weight: 600; white-space: nowrap; pointer-events: none; }
+#msg:empty { display: none; }
+#msg.ok { border-color: var(--ok); color: var(--ok); }
+#msg.bad { border-color: var(--bad); color: var(--bad); }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.btn { padding: 8px 13px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel2); cursor: pointer; font-weight: 600; font-size: 14px; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #071226; }
+.btn.tool.on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+.btn .cnt { font-size: 12px; color: var(--muted); margin-left: 2px; }
+.small { font-size: 12px; color: var(--muted); }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+
+#title { margin: 0 0 4px; font-size: 18px; }
+#desc { margin: 0; line-height: 1.6; font-size: 14px; }
+.formula { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--panel2); border-left: 3px solid var(--accent);
+  font-family: "Cambria Math", "Latin Modern Math", "STIX Two Math", Georgia, serif; font-size: 17px; line-height: 1.7; }
+.formula .lbl { display: block; font-family: system-ui, sans-serif; font-size: 12px; color: var(--muted); }
+#givens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+#givens span { padding: 3px 8px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); font-size: 13px;
+  font-family: Georgia, serif; }
+#hint { margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+.param { display: grid; grid-template-columns: 30px minmax(0, 1fr) 82px; gap: 8px; align-items: center; margin: 8px 0; }
+.param label { font-family: Georgia, serif; font-style: italic; font-weight: 700; font-size: 17px; }
+.param .val { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; font-size: 14px; }
+.param input[type=range] { width: 100%; }
+.nudge { display: flex; gap: 4px; justify-content: flex-end; grid-column: 2 / 4; }
+.nudge button { padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); cursor: pointer; font-size: 12px; }
+#result { line-height: 1.6; font-size: 14px; }
+#result .big { font-size: 17px; font-weight: 700; }
+
+@media (max-width: 1150px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 320px; }
+  #levelCard { grid-column: 1 / -1; }
+  #levels { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+}
+@media (max-width: 800px) {
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
+  #levels { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧲 로렌츠 골프</h1>
+  <span class="sub">F = q(E + v × B) 로 대전 입자를 골에 넣으세요</span>
+</header>
+
+<div class="layout">
+  <section class="card" id="levelCard">
+    <h2>스테이지</h2>
+    <div id="levels"></div>
+  </section>
+
+  <main>
+    <div id="boardWrap">
+      <canvas id="board"></canvas>
+      <div id="msg"></div>
+    </div>
+    <div class="toolbar">
+      <button class="btn primary" id="fireBtn">▶ 발사</button>
+      <button class="btn" id="resetBtn">↺ 되돌리기</button>
+      <span id="tools"></span>
+      <button class="btn" id="clearBtn">🗑 전하 모두 치우기</button>
+      <button class="btn" id="speedBtn">1×</button>
+      <label class="chk"><input type="checkbox" id="fieldChk" checked> 전기장 화살표</label>
+    </div>
+    <p class="small" id="howto"></p>
+  </main>
+
+  <aside class="stack">
+    <div class="card">
+      <h3 id="title"></h3>
+      <p id="desc"></p>
+      <div class="formula" id="formula"></div>
+      <div id="givens"></div>
+      <div id="hint" hidden></div>
+      <div class="toolbar"><button class="btn" id="hintBtn">💡 풀이 힌트</button></div>
+    </div>
+    <div class="card" id="paramCard">
+      <h2>장(field) 조절</h2>
+      <div id="params"></div>
+    </div>
+    <div class="card" id="result"></div>
+  </aside>
+</div>
+
+<script>
+'use strict';
+
+// ===== 세계와 상수 (게임 단위: 길이 px, 시간 s, q/m 무차원) =====
+const W = 900, H = 560, KQ = 2e6, PREVIEW_T = 2, SOFT = 10, CHARGE_HIT = 13, DT = 1 / 600, T_LIMIT = 15;
+
+// ===== 스테이지 =====
+// regions: 균일 전기장(E, 방향 Ed) 또는 자기장(B, +는 화면 밖 ⊙) 영역. 값이 문자열이면 슬라이더 변수.
+const LEVELS = [
+  { id: 'attract', title: '쿨롱 인력', mode: 'charges', par: 1,
+    desc: '정지해 있는 + 입자를 골까지 끌어오세요. 반대 부호 전하는 서로 끌어당깁니다. 전하를 골 너머에 두면 입자가 골을 지나갑니다.',
+    formula: '<span class="lbl">쿨롱의 법칙</span><i>F</i> = <i>k</i> <i>q</i><i>Q</i> / <i>r</i>²',
+    givens: ['q = +1', 'm = 1', 'kQ = 2×10⁶'],
+    hint: '− 전하를 골의 오른쪽, 입자와 일직선 위에 놓으세요. 너무 가까우면 입자가 전하에 부딪힙니다.',
+    particles: [{ x: 300, y: 280, vx: 0, vy: 0, q: 1, m: 1 }],
+    goals: [{ x: 600, y: 280, r: 26 }], inv: { pos: 0, neg: 1 } },
+  { id: 'repel', title: '척력으로 넘기기', mode: 'charges', par: 1,
+    desc: '입자가 벽으로 날아갑니다. 같은 부호 전하는 서로 밀어냅니다. 벽을 넘겨 위쪽 골에 넣으세요.',
+    formula: '<span class="lbl">같은 부호: 척력, 다른 부호: 인력</span><b>F</b> = <i>k</i><i>q</i><i>Q</i> <b>r̂</b> / <i>r</i>²',
+    givens: ['q = +1', 'v = 220', 'kQ = 2×10⁶'],
+    hint: '+ 전하를 입자 진행 경로의 약간 아래쪽, 벽 앞에 두면 입자가 위로 튕겨 나갑니다.',
+    particles: [{ x: 60, y: 430, vx: 220, vy: 0, q: 1, m: 1 }],
+    walls: [{ x: 420, y: 250, w: 36, h: 310 }],
+    goals: [{ x: 560, y: 120, r: 45 }], inv: { pos: 1, neg: 1 } },
+  { id: 'plates', title: '평행판 축전기', mode: 'shots',
+    desc: '평행판 사이의 균일한 전기장은 입자를 일정한 가속도로 밉니다. 수평으로 들어온 입자는 포물선을 그립니다. 골에 맞게 E를 계산하세요.',
+    formula: '<span class="lbl">균일 전기장 속 포물선</span><i>a</i> = <i>q</i><i>E</i>/<i>m</i>, &nbsp; Δ<i>y</i> = ½ <i>a</i> (<i>L</i>/<i>v</i>)²',
+    givens: ['q = +1', 'm = 1', 'v = 250', 'L = 490', 'Δy = 288'],
+    hint: 'E = 2 m Δy v² / (q L²) = 2·288·250² / 490² ≈ 150',
+    particles: [{ x: 60, y: 120, vx: 250, vy: 0, q: 1, m: 1 }],
+    regions: [{ x: 200, y: 40, w: 520, h: 480, E: 'E', Ed: [0, 1] }],
+    params: [{ key: 'E', label: 'E', min: 0, max: 400, step: 10, init: 0 }],
+    goals: [{ x: 690, y: 408, r: 20 }],
+    dims: [{ x1: 200, y1: 545, x2: 690, y2: 545, t: 'L = 490' }, { x1: 735, y1: 120, x2: 735, y2: 408, t: 'Δy = 288' }] },
+  { id: 'circle', title: '자기장 U턴', mode: 'shots',
+    desc: '자기장은 속도에 수직으로 힘을 줘서 입자를 원운동시킵니다. 반 바퀴 돌아 아래쪽 골로 나오게 B를 정하세요. (B > 0 은 화면 밖 ⊙)',
+    formula: '<span class="lbl">로렌츠 힘과 원운동</span><b>F</b> = <i>q</i> <b>v</b> × <b>B</b>, &nbsp; <i>r</i> = <i>m</i><i>v</i> / (|<i>q</i>|<i>B</i>)',
+    givens: ['q = +1', 'm = 1', 'v = 240', '지름 2r = 300'],
+    hint: 'r = 150 이므로 |B| = m v / (q r) = 240 / 150 = 1.6. 방향은 오른손 법칙으로: 오른쪽으로 가는 +전하를 아래로 꺾으려면 B는 화면 밖(⊙, +).',
+    particles: [{ x: 60, y: 160, vx: 240, vy: 0, q: 1, m: 1 }],
+    regions: [{ x: 300, y: 20, w: 580, h: 520, B: 'B' }],
+    params: [{ key: 'B', label: 'B', min: -3, max: 3, step: 0.1, init: 0 }],
+    walls: [{ x: 280, y: 200, w: 20, h: 230 }],
+    goals: [{ x: 262, y: 460, r: 22 }],
+    dims: [{ x1: 320, y1: 160, x2: 320, y2: 460, t: '2r = 300' }] },
+  { id: 'electron', title: '전자는 반대로', mode: 'shots',
+    desc: '이번엔 음전하(전자)입니다. 같은 B라도 부호가 바뀌면 반대쪽으로 휩니다. 위쪽 골로 보내세요.',
+    formula: '<span class="lbl">음전하는 힘의 방향이 반대</span><b>F</b> = (−<i>e</i>) <b>v</b> × <b>B</b>',
+    givens: ['q = −1', 'm = 1', 'v = 240', '지름 2r = 200'],
+    hint: 'r = 100 → |B| = 240/100 = 2.4. +전하였다면 ⊗ 방향(−)이 위로 꺾지만, 전자는 반대이므로 B = +2.4 (⊙).',
+    particles: [{ x: 60, y: 420, vx: 240, vy: 0, q: -1, m: 1 }],
+    regions: [{ x: 300, y: 20, w: 580, h: 520, B: 'B' }],
+    params: [{ key: 'B', label: 'B', min: -3, max: 3, step: 0.1, init: 0 }],
+    walls: [{ x: 280, y: 250, w: 20, h: 140 }],
+    goals: [{ x: 262, y: 220, r: 22 }],
+    dims: [{ x1: 320, y1: 420, x2: 320, y2: 220, t: '2r = 200' }] },
+  { id: 'selector', title: '속도 선택기', mode: 'shots',
+    desc: '전기장과 자기장이 수직으로 겹친 영역입니다. 전기력과 자기력이 정확히 상쇄되면 입자는 똑바로 지나갑니다. 좁은 틈을 통과시키세요.',
+    formula: '<span class="lbl">힘의 평형</span><i>q</i><i>E</i> = <i>q</i><i>v</i><i>B</i> &nbsp;⇒&nbsp; <i>v</i> = <i>E</i> / <i>B</i>',
+    givens: ['q = +1', 'v = 200', 'E = 300 (아래 방향)'],
+    hint: '|B| = E / v = 300 / 200 = 1.5. 전기력이 아래이니 자기력은 위로: 오른쪽으로 가는 +전하에 위쪽 힘을 주는 B는 화면 안(⊗), 즉 B = −1.5.',
+    particles: [{ x: 60, y: 280, vx: 200, vy: 0, q: 1, m: 1 }],
+    regions: [{ x: 250, y: 150, w: 420, h: 260, E: 300, Ed: [0, 1], B: 'B' }],
+    params: [{ key: 'B', label: 'B', min: -3, max: 3, step: 0.1, init: 0 }],
+    walls: [{ x: 400, y: 150, w: 16, h: 118 }, { x: 400, y: 292, w: 16, h: 118 },
+            { x: 680, y: 0, w: 22, h: 268 }, { x: 680, y: 292, w: 22, h: 268 }],
+    goals: [{ x: 820, y: 280, r: 22 }] },
+  { id: 'spectro', title: '질량 분석기', mode: 'shots',
+    desc: '같은 속도·같은 전하에 질량만 다른 두 입자를 동시에 쏩니다. 자기장 속 반지름이 질량에 비례하는 것을 이용해, 각자 같은 색 골로 보내세요.',
+    formula: '<span class="lbl">질량 분석</span><i>r</i> = <i>m</i><i>v</i> / (<i>q</i><i>B</i>) &nbsp;∝&nbsp; <i>m</i>',
+    givens: ['q = +1', 'v = 200', 'm₁ = 1 (주황)', 'm₂ = 2 (초록)', '2r₁ = 200'],
+    hint: '가벼운 입자의 지름이 200이므로 r₁ = 100, |B| = m₁ v / (q r₁) = 2. 무거운 입자는 자동으로 r₂ = 200이 됩니다. 아래로 꺾어야 하니 B = +2.',
+    particles: [{ x: 60, y: 120, vx: 200, vy: 0, q: 1, m: 1, c: '#ffa94d' }, { x: 60, y: 120, vx: 200, vy: 0, q: 1, m: 2, c: '#63e6be' }],
+    regions: [{ x: 250, y: 20, w: 630, h: 525, B: 'B' }],
+    params: [{ key: 'B', label: 'B', min: -3, max: 3, step: 0.1, init: 0 }],
+    walls: [{ x: 230, y: 160, w: 20, h: 120 }, { x: 230, y: 360, w: 20, h: 120 }],
+    goals: [{ x: 214, y: 320, r: 20, p: 0 }, { x: 214, y: 520, r: 20, p: 1 }] },
+  { id: 'maze', title: '전하 배치 미로', mode: 'charges', par: 2,
+    desc: '벽을 피해 오른쪽 위 골까지 보내세요. 전하는 끌기로 옮길 수 있습니다. 적게 쓸수록 별이 많아요.',
+    formula: '<span class="lbl">중첩의 원리</span><b>E</b> = Σ <i>k</i><i>Q</i>ᵢ <b>r̂</b>ᵢ / <i>r</i>ᵢ²',
+    givens: ['q = +1', 'v = 180', 'kQ = 2×10⁶'],
+    hint: '+ 전하로 아래에서 밀어 올려 벽을 넘기고, − 전하로 골 쪽으로 끌어당겨 보세요.',
+    particles: [{ x: 60, y: 480, vx: 180, vy: 0, q: 1, m: 1 }],
+    walls: [{ x: 380, y: 200, w: 34, h: 360 }],
+    goals: [{ x: 820, y: 110, r: 28 }], inv: { pos: 2, neg: 2 } },
+  { id: 'final', title: '종합: 자기장 + 전하', mode: 'charges', par: 1,
+    desc: '자기장 영역과 전하를 함께 써서 벽 너머의 골에 넣으세요. B와 전하 위치를 모두 바꿀 수 있습니다.',
+    formula: '<span class="lbl">로렌츠 힘</span><b>F</b> = <i>q</i>(<b>E</b> + <b>v</b> × <b>B</b>)',
+    givens: ['q = +1', 'v = 220', 'kQ = 2×10⁶'],
+    hint: 'B 영역에서 입자를 크게 돌려 위쪽 통로로 보낸 다음, 전하로 골 쪽으로 방향을 잡아 보세요.',
+    particles: [{ x: 60, y: 460, vx: 220, vy: 0, q: 1, m: 1 }],
+    regions: [{ x: 160, y: 300, w: 260, h: 240, B: 'B' }],
+    params: [{ key: 'B', label: 'B', min: -3, max: 3, step: 0.1, init: 0 }],
+    walls: [{ x: 500, y: 220, w: 40, h: 340 }],
+    goals: [{ x: 760, y: 150, r: 32 }], inv: { pos: 2, neg: 2 } },
+];
+
+// ===== 저장 =====
+const KEY = 'lorentz-golf.v1';
+const progress = (() => {
+  try { const p = JSON.parse(localStorage.getItem(KEY)); if (p && p.stars) return p; } catch (e) { /* 무시 */ }
+  return { stars: {}, last: 0 };
+})();
+function saveProgress() { try { localStorage.setItem(KEY, JSON.stringify(progress)); } catch (e) { /* 무시 */ } }
+
+// ===== 상태 =====
+const $ = id => document.getElementById(id);
+const st = { idx: 0, charges: [], params: {}, tool: null, phase: 'edit', parts: [], ghost: [], shots: 0, speed: 1,
+  drag: null, msg: '', t: 0 };
+const L = () => LEVELS[st.idx];
+const unlocked = i => i === 0 || progress.stars[LEVELS[i - 1].id] > 0 || progress.stars[LEVELS[i].id] > 0;
+
+// ===== 물리 =====
+function paramVal(v) { return typeof v === 'string' ? st.params[v] : v; }
+function field(x, y) {
+  let ex = 0, ey = 0, bz = 0;
+  for (const c of st.charges) {
+    const dx = x - c.x, dy = y - c.y, r2 = dx * dx + dy * dy + SOFT * SOFT;
+    const f = c.s * KQ / (r2 * Math.sqrt(r2));
+    ex += f * dx; ey += f * dy;
+  }
+  for (const g of L().regions || []) {
+    if (x < g.x || x > g.x + g.w || y < g.y || y > g.y + g.h) continue;
+    if (g.E != null) { const e = paramVal(g.E); ex += e * g.Ed[0]; ey += e * g.Ed[1]; }
+    // 화면 좌표(y 아래)는 z축이 화면 안쪽이므로, 화면 밖 + 인 B는 부호를 뒤집어 계산
+    if (g.B != null) bz -= paramVal(g.B);
+  }
+  return [ex, ey, bz];
+}
+function accel(p, x, y, vx, vy) {
+  const [ex, ey, bz] = field(x, y), k = p.q / p.m;
+  return [k * (ex + vy * bz), k * (ey - vx * bz)];
+}
+function rk4(p, dt) {
+  const { x, y, vx, vy } = p;
+  const a1 = accel(p, x, y, vx, vy);
+  const a2 = accel(p, x + vx * dt / 2, y + vy * dt / 2, vx + a1[0] * dt / 2, vy + a1[1] * dt / 2);
+  const v2x = vx + a1[0] * dt / 2, v2y = vy + a1[1] * dt / 2;
+  const v3x = vx + a2[0] * dt / 2, v3y = vy + a2[1] * dt / 2;
+  const a3 = accel(p, x + v2x * dt / 2, y + v2y * dt / 2, v3x, v3y);
+  const v4x = vx + a3[0] * dt, v4y = vy + a3[1] * dt;
+  const a4 = accel(p, x + v3x * dt, y + v3y * dt, v4x, v4y);
+  p.x += dt / 6 * (vx + 2 * v2x + 2 * v3x + v4x);
+  p.y += dt / 6 * (vy + 2 * v2y + 2 * v3y + v4y);
+  p.vx += dt / 6 * (a1[0] + 2 * a2[0] + 2 * a3[0] + a4[0]);
+  p.vy += dt / 6 * (a1[1] + 2 * a2[1] + 2 * a3[1] + a4[1]);
+}
+function makeParts() {
+  return L().particles.map((p, i) => ({ ...p, i, state: 'fly', trail: [[p.x, p.y]], why: '' }));
+}
+// 한 입자를 dt만큼 진행하고 충돌·골 판정
+function advance(p, dt) {
+  if (p.state !== 'fly') return;
+  rk4(p, dt);
+  const lv = L();
+  if (p.x < 0 || p.x > W || p.y < 0 || p.y > H) { p.state = 'fail'; p.why = '화면 밖으로 날아갔어요'; return; }
+  for (const w of lv.walls || []) {
+    if (p.x > w.x && p.x < w.x + w.w && p.y > w.y && p.y < w.y + w.h) { p.state = 'fail'; p.why = '벽에 부딪혔어요'; return; }
+  }
+  for (const c of st.charges) {
+    if (Math.hypot(p.x - c.x, p.y - c.y) < CHARGE_HIT) { p.state = 'fail'; p.why = '전하에 충돌했어요'; return; }
+  }
+  lv.goals.forEach(g => {
+    if ((g.p == null || g.p === p.i) && Math.hypot(p.x - g.x, p.y - g.y) < g.r) p.state = 'goal';
+    else if (g.p != null && g.p !== p.i && Math.hypot(p.x - g.x, p.y - g.y) < g.r) { p.state = 'fail'; p.why = '다른 색 골에 들어갔어요'; }
+  });
+}
+// 전하 배치 스테이지에서만 처음 PREVIEW_T초 궤적을 미리 보여 줌
+let previewKey = '', preview = [];
+function getPreview() {
+  if (L().mode !== 'charges') return [];
+  const key = st.idx + JSON.stringify(st.charges) + JSON.stringify(st.params);
+  if (key === previewKey) return preview;
+  previewKey = key;
+  preview = makeParts().map(p => {
+    const pts = [[p.x, p.y]];
+    for (let k = 1; k * DT < PREVIEW_T && p.state === 'fly'; k++) { advance(p, DT); if (k % 6 === 0) pts.push([p.x, p.y]); }
+    pts.push([p.x, p.y]);
+    return { pts, c: p.c || (p.q > 0 ? '#ffa94d' : '#74c0fc') };
+  });
+  return preview;
+}
+// 테스트·검증용: 지금 배치로 끝까지 계산
+function simulateAll() {
+  const ps = makeParts();
+  for (let t = 0; t < T_LIMIT && ps.some(p => p.state === 'fly'); t += DT) ps.forEach(p => advance(p, DT));
+  return ps.every(p => p.state === 'goal');
+}
+
+// ===== 스테이지 불러오기 =====
+function loadLevel(i) {
+  st.idx = i; progress.last = i; saveProgress();
+  const lv = L();
+  st.charges = [];
+  st.params = {};
+  for (const pm of lv.params || []) st.params[pm.key] = pm.init;
+  st.tool = lv.inv ? (lv.inv.neg ? -1 : 1) : null;
+  st.shots = 0; st.ghost = [];
+  $('title').textContent = `${i + 1}. ${lv.title}`;
+  $('desc').textContent = lv.desc;
+  $('formula').innerHTML = lv.formula;
+  $('givens').innerHTML = lv.givens.map(g => `<span>${g}</span>`).join('');
+  $('hint').hidden = true;
+  $('hint').textContent = '💡 ' + lv.hint;
+  $('howto').textContent = lv.inv
+    ? `전하 도구를 고른 뒤 보드를 누르면 전하가 놓입니다. 놓인 전하는 끌어서 옮기고, 그냥 누르면 치워집니다. 점선은 처음 ${PREVIEW_T}초 동안의 예상 궤적입니다.`
+    : '오른쪽에서 장의 세기를 정하고 ▶ 발사를 누르세요. 공식으로 계산해서 한 번에 맞히면 별 3개!';
+  renderParams();
+  renderTools();
+  renderLevels();
+  toEdit();
+}
+function toEdit() {
+  st.phase = 'edit';
+  st.parts = makeParts();
+  st.msg = '';
+  renderResult();
+  updateButtons();
+}
+function invLeft(sign) {
+  const inv = L().inv;
+  if (!inv) return 0;
+  return (sign > 0 ? inv.pos : inv.neg) - st.charges.filter(c => c.s === sign).length;
+}
+
+// ===== 화면 =====
+function renderLevels() {
+  $('levels').innerHTML = LEVELS.map((lv, i) => {
+    const s = progress.stars[lv.id];
+    const right = s ? starsHTML(s) : unlocked(i) ? '' : '🔒';
+    return `<button data-i="${i}" class="${i === st.idx ? 'cur' : ''}" ${unlocked(i) ? '' : 'disabled'}><span>${i + 1}. ${lv.title}</span>${right}</button>`;
+  }).join('');
+}
+function starsHTML(k) { return `<span class="stars">${'★'.repeat(k)}<span class="dim">${'★'.repeat(3 - k)}</span></span>`; }
+function renderTools() {
+  const inv = L().inv;
+  $('tools').innerHTML = inv
+    ? [[1, '＋ 양전하', inv.pos], [-1, '− 음전하', inv.neg]].filter(t => t[2] > 0).map(([s, label]) =>
+      `<button class="btn tool ${st.tool === s ? 'on' : ''}" data-tool="${s}" style="color:var(--${s > 0 ? 'pos' : 'neg'})">${label}<span class="cnt">×${invLeft(s)}</span></button>`).join(' ')
+    : '';
+  $('clearBtn').hidden = !inv;
+}
+function fmtParam(pm, v) {
+  if (pm.key === 'B') return v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(1)} ${v > 0 ? '⊙' : '⊗'}`;
+  return String(v);
+}
+function renderParams() {
+  const ps = L().params || [];
+  $('paramCard').hidden = !ps.length;
+  $('params').innerHTML = ps.map(pm => `<div class="param"><label for="pm-${pm.key}">${pm.label}</label>`
+    + `<input type="range" id="pm-${pm.key}" data-key="${pm.key}" min="${pm.min}" max="${pm.max}" step="${pm.step}" value="${st.params[pm.key]}">`
+    + `<span class="val" id="pv-${pm.key}">${fmtParam(pm, st.params[pm.key])}</span>`
+    + `<div class="nudge"><button data-nudge="${pm.key}" data-d="-1">◀ −${pm.step}</button><button data-nudge="${pm.key}" data-d="1">+${pm.step} ▶</button></div></div>`).join('')
+    + (ps.some(p => p.key === 'B') ? '<div class="small">B &gt; 0 : 화면 밖으로 나오는 방향 ⊙ · B &lt; 0 : 화면 안으로 들어가는 방향 ⊗</div>' : '')
+    + (ps.some(p => p.key === 'E') ? '<div class="small">E는 아래 방향이 + 입니다.</div>' : '');
+}
+function setParam(key, v) {
+  const pm = L().params.find(p => p.key === key);
+  v = Math.round(Math.min(pm.max, Math.max(pm.min, v)) / pm.step) * pm.step;
+  v = +v.toFixed(3);
+  st.params[key] = v;
+  $('pm-' + key).value = v;
+  $('pv-' + key).textContent = fmtParam(pm, v);
+}
+function updateButtons() {
+  const edit = st.phase === 'edit';
+  $('fireBtn').disabled = !edit;
+  $('clearBtn').disabled = !edit || !st.charges.length;
+  for (const el of document.querySelectorAll('#params input, #params button, #tools button')) el.disabled = !edit;
+}
+function renderResult() {
+  const lv = L(), el = $('result');
+  const shotTxt = `발사 횟수 ${st.shots}`;
+  if (st.phase === 'win') {
+    const s = starsFor();
+    el.innerHTML = `<div class="big" style="color:var(--ok)">골인! ${starsHTML(s)}</div>`
+      + `<div>${lv.mode === 'charges' ? `사용한 전하 ${st.charges.length}개 (기준 ${lv.par}개 이하면 ★★★)` : `${shotTxt} (한 번에 맞히면 ★★★)`}</div>`
+      + (st.idx < LEVELS.length - 1 ? '<div class="toolbar"><button class="btn primary" id="nextBtn">다음 스테이지 →</button><button class="btn" id="againBtn">다시 하기</button></div>'
+        : '<div style="margin-top:6px">🏆 모든 스테이지 완료! 맥스웰도 뿌듯해할 거예요.</div>');
+  } else if (st.phase === 'fail') {
+    const why = st.parts.find(p => p.state === 'fail');
+    el.innerHTML = `<div class="big" style="color:var(--bad)">실패: ${why ? why.why : '시간 초과'}</div><div class="small">흐린 선이 방금 궤적입니다. ${shotTxt}</div>`
+      + '<div class="toolbar"><button class="btn primary" id="againBtn">↺ 고쳐서 다시</button></div>';
+  } else if (st.phase === 'run') {
+    el.innerHTML = '<div class="small">비행 중… (노란 화살표: 입자가 받는 힘 F, 하늘색: 속도 v)</div>';
+  } else {
+    el.innerHTML = `<div class="small">${lv.mode === 'charges' ? `전하 ${lv.par}개 이하로 성공하면 ★★★` : '공식으로 값을 계산해 한 번에 맞혀 보세요.'} · ${shotTxt}</div>`;
+  }
+  const nb = $('nextBtn'); if (nb) nb.onclick = () => loadLevel(st.idx + 1);
+  const ab = $('againBtn'); if (ab) ab.onclick = toEdit;
+}
+function starsFor() {
+  const lv = L();
+  if (lv.mode === 'charges') { const n = st.charges.length; return n <= lv.par ? 3 : n <= lv.par + 1 ? 2 : 1; }
+  return st.shots <= 1 ? 3 : st.shots <= 3 ? 2 : 1;
+}
+
+// ===== 그리기 =====
+const cv = $('board'), cx = cv.getContext('2d');
+let scale = 1;
+function fit() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  scale = r.width / W;
+  const pw = Math.round(r.width * dpr), ph = Math.round(r.width * H / W * dpr);
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; cv.style.height = (r.width * H / W) + 'px'; }
+  cx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+}
+function arrow(x1, y1, x2, y2, color, w, head) {
+  cx.strokeStyle = color; cx.fillStyle = color; cx.lineWidth = w;
+  cx.beginPath(); cx.moveTo(x1, y1); cx.lineTo(x2, y2); cx.stroke();
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  cx.beginPath(); cx.moveTo(x2, y2);
+  cx.lineTo(x2 - head * Math.cos(a - 0.45), y2 - head * Math.sin(a - 0.45));
+  cx.lineTo(x2 - head * Math.cos(a + 0.45), y2 - head * Math.sin(a + 0.45));
+  cx.closePath(); cx.fill();
+}
+function draw() {
+  fit();
+  const lv = L();
+  cx.fillStyle = '#070a12'; cx.fillRect(0, 0, W, H);
+  cx.strokeStyle = 'rgba(106,168,255,.06)'; cx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 30) { cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x, H); cx.stroke(); }
+  for (let y = 0; y <= H; y += 30) { cx.beginPath(); cx.moveTo(0, y); cx.lineTo(W, y); cx.stroke(); }
+
+  // 영역
+  for (const g of lv.regions || []) {
+    const e = g.E != null ? paramVal(g.E) : 0, b = g.B != null ? paramVal(g.B) : 0;
+    cx.fillStyle = b ? `rgba(180,140,255,${0.05 + Math.min(0.12, Math.abs(b) * 0.04)})` : 'rgba(255,183,74,.05)';
+    cx.fillRect(g.x, g.y, g.w, g.h);
+    cx.setLineDash([6, 5]); cx.strokeStyle = g.B != null ? 'rgba(180,140,255,.6)' : 'rgba(255,183,74,.6)'; cx.lineWidth = 1.5;
+    cx.strokeRect(g.x, g.y, g.w, g.h); cx.setLineDash([]);
+    if (g.B != null && b) {
+      cx.fillStyle = cx.strokeStyle = 'rgba(180,140,255,.55)'; cx.lineWidth = 1.5;
+      for (let x = g.x + 30; x < g.x + g.w; x += 60) for (let y = g.y + 30; y < g.y + g.h; y += 60) {
+        cx.beginPath(); cx.arc(x, y, 7, 0, Math.PI * 2); cx.stroke();
+        if (b > 0) { cx.beginPath(); cx.arc(x, y, 2, 0, Math.PI * 2); cx.fill(); }
+        else { cx.beginPath(); cx.moveTo(x - 4, y - 4); cx.lineTo(x + 4, y + 4); cx.moveTo(x + 4, y - 4); cx.lineTo(x - 4, y + 4); cx.stroke(); }
+      }
+    }
+    if (g.E != null) {
+      // 평행판
+      cx.fillStyle = 'rgba(255,107,107,.8)'; cx.fillRect(g.x, g.y - 4, g.w, 4);
+      cx.fillStyle = 'rgba(90,169,255,.8)'; cx.fillRect(g.x, g.y + g.h, g.w, 4);
+      cx.font = 'bold 13px system-ui'; cx.textAlign = 'left';
+      cx.fillStyle = '#ff8a8a'; cx.fillText('+ + +', g.x + 6, g.y - 8);
+      cx.fillStyle = '#7fbaff'; cx.fillText('− − −', g.x + 6, g.y + g.h + 18);
+    }
+    cx.font = '13px Georgia, serif'; cx.textAlign = 'right'; cx.fillStyle = '#c9b6ff';
+    const label = [g.E != null ? `E = ${e}` : '', g.B != null ? `B = ${b > 0 ? '+' : ''}${b.toFixed(1)}` : ''].filter(Boolean).join(', ');
+    cx.fillText(label, g.x + g.w - 8, g.y + 18);
+  }
+
+  // 전기장 화살표
+  if ($('fieldChk').checked) {
+    for (let x = 15; x < W; x += 30) for (let y = 15; y < H; y += 30) {
+      const [ex, ey] = field(x, y), m = Math.hypot(ex, ey);
+      if (m < 1) continue;
+      const len = Math.min(13, 3 + 2.2 * Math.log10(1 + m));
+      const a = Math.min(0.75, 0.12 + Math.log10(1 + m) * 0.1);
+      arrow(x - ex / m * len / 2, y - ey / m * len / 2, x + ex / m * len / 2, y + ey / m * len / 2, `rgba(255,207,74,${a})`, 1.2, 4);
+    }
+  }
+
+  // 치수선
+  for (const d of lv.dims || []) {
+    cx.strokeStyle = 'rgba(230,233,245,.5)'; cx.setLineDash([3, 4]); cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(d.x1, d.y1); cx.lineTo(d.x2, d.y2); cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle = 'rgba(230,233,245,.85)'; cx.font = 'italic 13px Georgia, serif'; cx.textAlign = 'center';
+    const vert = d.x1 === d.x2;
+    cx.fillText(d.t, (d.x1 + d.x2) / 2 + (vert ? 34 : 0), (d.y1 + d.y2) / 2 + (vert ? 4 : -6));
+  }
+
+  // 벽
+  for (const w of lv.walls || []) {
+    cx.fillStyle = '#2a3150'; cx.fillRect(w.x, w.y, w.w, w.h);
+    cx.save(); cx.beginPath(); cx.rect(w.x, w.y, w.w, w.h); cx.clip();
+    cx.strokeStyle = 'rgba(255,255,255,.08)'; cx.lineWidth = 2;
+    for (let k = -w.h; k < w.w + w.h; k += 10) { cx.beginPath(); cx.moveTo(w.x + k, w.y); cx.lineTo(w.x + k - w.h, w.y + w.h); cx.stroke(); }
+    cx.restore();
+  }
+
+  // 골
+  const t = performance.now() / 1000;
+  for (const g of lv.goals) {
+    const col = g.p != null ? (lv.particles[g.p].c || '#3ddc97') : '#3ddc97';
+    cx.strokeStyle = col; cx.lineWidth = 3;
+    cx.beginPath(); cx.arc(g.x, g.y, g.r, 0, Math.PI * 2); cx.stroke();
+    cx.globalAlpha = 0.35 + 0.2 * Math.sin(t * 3);
+    cx.beginPath(); cx.arc(g.x, g.y, g.r * 0.55, 0, Math.PI * 2); cx.stroke();
+    cx.globalAlpha = 1;
+  }
+
+  // 이전 궤적
+  for (const tr of st.ghost) {
+    cx.strokeStyle = 'rgba(230,233,245,.18)'; cx.lineWidth = 1.5; cx.setLineDash([4, 4]);
+    cx.beginPath(); tr.forEach(([x, y], k) => (k ? cx.lineTo(x, y) : cx.moveTo(x, y))); cx.stroke(); cx.setLineDash([]);
+  }
+
+  // 궤적 미리보기
+  if (st.phase === 'edit') {
+    for (const pv of getPreview()) {
+      cx.strokeStyle = pv.c; cx.globalAlpha = 0.55; cx.lineWidth = 2; cx.setLineDash([2, 6]);
+      cx.beginPath(); pv.pts.forEach(([x, y], k) => (k ? cx.lineTo(x, y) : cx.moveTo(x, y))); cx.stroke();
+      cx.setLineDash([]); cx.globalAlpha = 1;
+    }
+  }
+
+  // 놓인 전하
+  for (const c of st.charges) {
+    const col = c.s > 0 ? '255,107,107' : '90,169,255';
+    const gr = cx.createRadialGradient(c.x, c.y, 2, c.x, c.y, 34);
+    gr.addColorStop(0, `rgba(${col},.45)`); gr.addColorStop(1, `rgba(${col},0)`);
+    cx.fillStyle = gr; cx.beginPath(); cx.arc(c.x, c.y, 34, 0, Math.PI * 2); cx.fill();
+    cx.fillStyle = `rgb(${col})`; cx.beginPath(); cx.arc(c.x, c.y, 12, 0, Math.PI * 2); cx.fill();
+    cx.fillStyle = '#0b0e18'; cx.font = 'bold 18px system-ui'; cx.textAlign = 'center';
+    cx.fillText(c.s > 0 ? '+' : '−', c.x, c.y + 6);
+  }
+
+  // 입자와 궤적
+  for (const p of st.parts) {
+    const col = p.c || (p.q > 0 ? '#ffa94d' : '#74c0fc');
+    cx.strokeStyle = col; cx.lineWidth = 2; cx.globalAlpha = 0.8;
+    cx.beginPath(); p.trail.forEach(([x, y], k) => (k ? cx.lineTo(x, y) : cx.moveTo(x, y))); cx.stroke();
+    cx.globalAlpha = 1;
+    if (st.phase === 'edit') {
+      const sp = Math.hypot(p.vx, p.vy);
+      if (sp > 0) arrow(p.x, p.y, p.x + p.vx / sp * 46, p.y + p.vy / sp * 46, 'rgba(116,192,252,.8)', 2, 8);
+    }
+    if (st.phase === 'run' && p.state === 'fly') {
+      const sp = Math.hypot(p.vx, p.vy);
+      if (sp > 1) arrow(p.x, p.y, p.x + p.vx / sp * 34, p.y + p.vy / sp * 34, 'rgba(116,192,252,.9)', 2, 7);
+      const [ax, ay] = accel(p, p.x, p.y, p.vx, p.vy), am = Math.hypot(ax, ay) * p.m;
+      if (am > 1) { const l = Math.min(48, 10 + 6 * Math.log10(1 + am)); arrow(p.x, p.y, p.x + ax / Math.hypot(ax, ay) * l, p.y + ay / Math.hypot(ax, ay) * l, '#ffcf4a', 2.5, 8); }
+    }
+    cx.fillStyle = col; cx.beginPath(); cx.arc(p.x, p.y, 9, 0, Math.PI * 2); cx.fill();
+    cx.fillStyle = '#0b0e18'; cx.font = 'bold 13px system-ui'; cx.textAlign = 'center';
+    cx.fillText(p.q > 0 ? '+' : '−', p.x, p.y + 4.5);
+    if (p.state === 'goal') { cx.strokeStyle = '#3ddc97'; cx.lineWidth = 2; cx.beginPath(); cx.arc(p.x, p.y, 15, 0, Math.PI * 2); cx.stroke(); }
+    if (p.state === 'fail') { cx.strokeStyle = '#ff6b81'; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(p.x - 9, p.y - 9); cx.lineTo(p.x + 9, p.y + 9); cx.moveTo(p.x + 9, p.y - 9); cx.lineTo(p.x - 9, p.y + 9); cx.stroke(); }
+  }
+
+  const m = $('msg');
+  m.textContent = st.msg;
+  m.className = st.phase === 'win' ? 'ok' : st.phase === 'fail' ? 'bad' : '';
+}
+
+// ===== 진행 =====
+function fire() {
+  if (st.phase !== 'edit') return;
+  st.shots++;
+  st.parts = makeParts();
+  st.phase = 'run'; st.t = 0; st.msg = '';
+  renderResult(); updateButtons();
+}
+function endRun() {
+  st.ghost = st.parts.map(p => p.trail.slice());
+  if (st.parts.every(p => p.state === 'goal')) {
+    st.phase = 'win'; st.msg = '골인! 🎉';
+    const s = starsFor();
+    if (s > (progress.stars[L().id] || 0)) { progress.stars[L().id] = s; saveProgress(); }
+    renderLevels();
+  } else {
+    st.phase = 'fail';
+    const f = st.parts.find(p => p.state === 'fail');
+    st.msg = f ? f.why : '시간 초과';
+  }
+  renderResult(); updateButtons();
+}
+let last = performance.now(), acc = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (st.phase === 'run') {
+    acc += dt * st.speed;
+    let n = 0;
+    while (acc >= DT && n < 2000) {
+      acc -= DT; n++;
+      st.t += DT;
+      st.parts.forEach(p => advance(p, DT));
+      if (n % 5 === 0) st.parts.forEach(p => { if (p.state === 'fly') p.trail.push([p.x, p.y]); });
+      if (!st.parts.some(p => p.state === 'fly') || st.t > T_LIMIT || st.parts.some(p => p.state === 'fail')) {
+        st.parts.forEach(p => p.trail.push([p.x, p.y]));
+        endRun(); acc = 0; break;
+      }
+    }
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+
+// ===== 입력 =====
+function toWorld(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / scale, (e.clientY - r.top) / scale]; }
+function blocked(x, y) {
+  const lv = L();
+  if ((lv.walls || []).some(w => x > w.x - 12 && x < w.x + w.w + 12 && y > w.y - 12 && y < w.y + w.h + 12)) return '벽 위에는 놓을 수 없어요';
+  if (lv.particles.some(p => Math.hypot(p.x - x, p.y - y) < 40)) return '출발점에 너무 가까워요';
+  if (lv.goals.some(g => Math.hypot(g.x - x, g.y - y) < g.r + 14)) return '골 위에는 놓을 수 없어요';
+  return '';
+}
+cv.addEventListener('pointerdown', e => {
+  if (st.phase !== 'edit' || !L().inv) return;
+  e.preventDefault();
+  const [x, y] = toWorld(e);
+  const hit = st.charges.find(c => Math.hypot(c.x - x, c.y - y) < 20);
+  if (hit) { st.drag = { c: hit, sx: x, sy: y, ox: hit.x, oy: hit.y, moved: false }; cv.setPointerCapture(e.pointerId); return; }
+  if (st.tool == null) return;
+  if (invLeft(st.tool) <= 0) { st.msg = '이 전하는 다 썼어요. 놓인 전하를 눌러 치우거나 옮기세요.'; return; }
+  const why = blocked(x, y);
+  if (why) { st.msg = why; return; }
+  st.charges.push({ x, y, s: st.tool });
+  st.msg = '';
+  renderTools(); updateButtons();
+});
+cv.addEventListener('pointermove', e => {
+  const d = st.drag;
+  if (!d) return;
+  const [x, y] = toWorld(e);
+  if (Math.hypot(x - d.sx, y - d.sy) > 4) d.moved = true;
+  d.c.x = Math.min(W - 10, Math.max(10, d.ox + x - d.sx));
+  d.c.y = Math.min(H - 10, Math.max(10, d.oy + y - d.sy));
+});
+cv.addEventListener('pointerup', () => {
+  const d = st.drag;
+  if (!d) return;
+  st.drag = null;
+  if (!d.moved) st.charges = st.charges.filter(c => c !== d.c);
+  else if (blocked(d.c.x, d.c.y)) { st.msg = blocked(d.c.x, d.c.y); d.c.x = d.ox; d.c.y = d.oy; }
+  renderTools(); updateButtons();
+});
+$('tools').addEventListener('click', e => {
+  const b = e.target.closest('[data-tool]');
+  if (b) { st.tool = +b.dataset.tool; renderTools(); updateButtons(); }
+});
+$('params').addEventListener('input', e => { if (e.target.dataset.key) setParam(e.target.dataset.key, +e.target.value); });
+$('params').addEventListener('click', e => {
+  const b = e.target.closest('[data-nudge]');
+  if (!b) return;
+  const pm = L().params.find(p => p.key === b.dataset.nudge);
+  setParam(pm.key, st.params[pm.key] + pm.step * +b.dataset.d);
+});
+$('levels').addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b && !b.disabled) loadLevel(+b.dataset.i); });
+$('fireBtn').onclick = fire;
+$('resetBtn').onclick = toEdit;
+$('clearBtn').onclick = () => { st.charges = []; renderTools(); updateButtons(); };
+$('speedBtn').onclick = () => { st.speed = st.speed === 1 ? 2 : st.speed === 2 ? 0.5 : 1; $('speedBtn').textContent = st.speed + '×'; };
+$('hintBtn').onclick = () => { $('hint').hidden = !$('hint').hidden; };
+window.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'Enter') { if (e.target === document.body) { e.preventDefault(); st.phase === 'edit' ? fire() : toEdit(); } }
+});
+
+loadLevel(unlocked(progress.last | 0) ? Math.min(progress.last | 0, LEVELS.length - 1) : 0);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
