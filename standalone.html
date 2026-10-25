@@ -929,7 +929,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); }
     </section>
 
     <p class="credits">
-      별 자료: Hipparcos·Yale BSC (d3-celestial, BSD-3) · 지형·시간대: Open-Meteo · 건물: OpenStreetMap (Overpass) · 지명: OpenStreetMap Nominatim ·
+      별 자료: Hipparcos·Yale BSC (d3-celestial, BSD-3) · 지형: AWS Terrain Tiles · 시간대: Open-Meteo · 건물: OpenStreetMap (Overpass) · 지명: OpenStreetMap Nominatim ·
       위성 사진: Esri World Imagery
     </p>
   </aside>
@@ -1170,7 +1170,7 @@ if (typeof module !== 'undefined') module.exports = globalThis.Astro;
 </script>
   <script>
 // 관측 지점 주변 지형으로 지평선 윤곽(산 능선)을 만든다.
-// 고도 자료: Open-Meteo Elevation API (Copernicus DEM 90 m). 실패하면 위치 기반 가상 지형을 쓴다.
+// 고도 자료: AWS Terrain Tiles (SRTM 등, terrarium PNG). 실패하면 위치 기반 가상 지형을 쓴다.
 (function (root) {
   'use strict';
 
@@ -1193,27 +1193,74 @@ if (typeof module !== 'undefined') module.exports = globalThis.Astro;
     return [(p2 * 180) / Math.PI, ((((l2 * 180) / Math.PI + 540) % 360) - 180)];
   }
 
-  async function fetchElevations(points, onProgress) {
-    const out = new Array(points.length);
-    const chunks = [];
-    for (let i = 0; i < points.length; i += 100) chunks.push(i);
+  // 고도 타일 (AWS Terrain Tiles, terrarium 형식: 고도 = R·256 + G + B/256 − 32768 m).
+  // 가까운 곳은 촘촘한 줌, 먼 곳은 성긴 줌의 타일에서 값을 읽는다. 호출 횟수 제한이 없다.
+  const TILE_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+  const NEAR_ZOOM = 12;
+  const FAR_ZOOM = 9;
+  const NEAR_ZOOM_KM = 5;
+  const tileCache = new Map();
+
+  function tileXY(lat, lon, z) {
+    const n = 2 ** z;
+    const r = (lat * Math.PI) / 180;
+    return [((lon + 180) / 360) * n, ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n];
+  }
+
+  async function fetchTile(z, x, y) {
+    const n = 2 ** z;
+    const key = `${z}/${((x % n) + n) % n}/${y}`;
+    if (!tileCache.has(key)) {
+      tileCache.set(key, (async () => {
+        const res = await fetchWithTimeout(TILE_URL.replace('{z}/{x}/{y}', key), {}, 20000);
+        if (!res.ok) throw new Error('고도 타일 HTTP ' + res.status);
+        const bmp = await createImageBitmap(await res.blob());
+        const c = document.createElement('canvas');
+        c.width = bmp.width;
+        c.height = bmp.height;
+        const g = c.getContext('2d', { willReadFrequently: true });
+        g.drawImage(bmp, 0, 0);
+        const px = g.getImageData(0, 0, c.width, c.height).data;
+        const elev = new Float32Array(c.width * c.height);
+        for (let i = 0; i < elev.length; i++) elev[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768;
+        return { size: c.width, elev };
+      })());
+      tileCache.get(key).catch(() => tileCache.delete(key));
+    }
+    return tileCache.get(key);
+  }
+
+  async function fetchElevations(points, zooms, onProgress) {
+    const need = new Map();
+    const coords = points.map(([lat, lon], i) => {
+      const z = zooms[i];
+      const [tx, ty] = tileXY(lat, lon, z);
+      const key = `${z}/${Math.floor(tx)}/${Math.floor(ty)}`;
+      need.set(key, [z, Math.floor(tx), Math.floor(ty)]);
+      return [z, tx, ty];
+    });
     let done = 0;
-    const worker = async () => {
-      while (chunks.length) {
-        const start = chunks.shift();
-        const part = points.slice(start, start + 100);
-        const url = 'https://api.open-meteo.com/v1/elevation?latitude=' +
-          part.map((p) => p[0].toFixed(5)).join(',') + '&longitude=' + part.map((p) => p[1].toFixed(5)).join(',');
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('elevation HTTP ' + res.status);
-        const json = await res.json();
-        json.elevation.forEach((e, k) => { out[start + k] = e; });
-        done++;
-        if (onProgress) onProgress(done / Math.ceil(points.length / 100));
-      }
-    };
-    await Promise.all([worker(), worker(), worker(), worker()]);
-    return out;
+    const tiles = new Map();
+    await Promise.all([...need].map(async ([key, [z, x, y]]) => {
+      tiles.set(key, await fetchTile(z, x, y));
+      done++;
+      if (onProgress) onProgress(done / need.size);
+    }));
+    return coords.map(([z, tx, ty]) => {
+      const t = tiles.get(`${z}/${Math.floor(tx)}/${Math.floor(ty)}`);
+      const s = t.size;
+      const fx = Math.min(s - 1.001, Math.max(0, (tx - Math.floor(tx)) * s - 0.5));
+      const fy = Math.min(s - 1.001, Math.max(0, (ty - Math.floor(ty)) * s - 0.5));
+      const x0 = Math.floor(fx), y0 = Math.floor(fy), u = fx - x0, v = fy - y0;
+      const e = (x, y) => t.elev[y * s + x];
+      return (e(x0, y0) * (1 - u) + e(x0 + 1, y0) * u) * (1 - v) + (e(x0, y0 + 1) * (1 - u) + e(x0 + 1, y0 + 1) * u) * v;
+    });
+  }
+
+  function fetchWithTimeout(url, opts, ms) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), ms);
+    return fetch(url, Object.assign({}, opts, { signal: ctl.signal })).finally(() => clearTimeout(timer));
   }
 
   function elevationAngle(h0, h, distKm) {
@@ -1242,7 +1289,7 @@ if (typeof module !== 'undefined') module.exports = globalThis.Astro;
       for (let k = 0; k < DIST_KM.length; k++) {
         const h = grid[a][k];
         if (h == null || Number.isNaN(h)) continue;
-        const ang = elevationAngle(eye, h, DIST_KM[k]);
+        const ang = elevationAngle(eye, Math.max(h, 0), DIST_KM[k]); // 바다(음수 수심)는 수면 0 m
         far = Math.max(far, ang);
         if (DIST_KM[k] <= MID_KM) mid = Math.max(mid, ang);
         if (DIST_KM[k] <= NEAR_KM) near = Math.max(near, ang);
@@ -1282,10 +1329,12 @@ if (typeof module !== 'undefined') module.exports = globalThis.Astro;
     for (let a = 0; a < N_AZ; a++) {
       for (const d of DIST_KM) points.push(destination(lat, lon, (a * 360) / N_AZ, d));
     }
-    const elev = await fetchElevations(points, onProgress);
+    const zooms = [NEAR_ZOOM];
+    for (let a = 0; a < N_AZ; a++) for (const d of DIST_KM) zooms.push(d <= NEAR_ZOOM_KM ? NEAR_ZOOM : FAR_ZOOM);
+    const elev = await fetchElevations(points, zooms, onProgress);
     const grid = [];
     for (let a = 0; a < N_AZ; a++) grid.push(elev.slice(1 + a * DIST_KM.length, 1 + (a + 1) * DIST_KM.length));
-    const prof = buildProfile(elev[0] || 0, grid);
+    const prof = buildProfile(Math.max(elev[0] || 0, 0), grid);
     prof.source = 'dem';
     cache.set(key, prof);
     return prof;
@@ -1303,7 +1352,7 @@ if (typeof module !== 'undefined') module.exports = globalThis.Astro;
   async function loadLocalInfo(lat, lon) {
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat.toFixed(4) + '&longitude=' + lon.toFixed(4) +
       '&timezone=auto&current=cloud_cover,temperature_2m,is_day';
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, {}, 15000);
     if (!res.ok) throw new Error('forecast HTTP ' + res.status);
     const j = await res.json();
     return {
@@ -1315,7 +1364,7 @@ if (typeof module !== 'undefined') module.exports = globalThis.Astro;
   // 지명 (OpenStreetMap Nominatim)
   async function reverseGeocode(lat, lon) {
     const url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=ko&lat=' + lat + '&lon=' + lon;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, {}, 15000);
     if (!res.ok) throw new Error('geocode HTTP ' + res.status);
     const j = await res.json();
     if (j.error) return null;
@@ -1326,12 +1375,12 @@ if (typeof module !== 'undefined') module.exports = globalThis.Astro;
 
   async function searchPlace(query) {
     const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=ko&q=' + encodeURIComponent(query);
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, {}, 15000);
     if (!res.ok) throw new Error('search HTTP ' + res.status);
     return (await res.json()).map((r) => ({ name: r.display_name, lat: +r.lat, lon: +r.lon }));
   }
 
-  root.Terrain = { N_AZ, EYE_HEIGHT_M, loadHorizon, reprofile, syntheticProfile, emptyProfile, loadLocalInfo, reverseGeocode, searchPlace };
+  root.Terrain = { N_AZ, fetchWithTimeout, EYE_HEIGHT_M, loadHorizon, reprofile, syntheticProfile, emptyProfile, loadLocalInfo, reverseGeocode, searchPlace };
 })(window);
 
 </script>
@@ -1376,42 +1425,54 @@ way["building"]["building:levels"]${a}(if:number(t["building:levels"])>=16);
     return DEFAULT_HEIGHT[tags.building] || 9;
   }
 
-  async function runQuery(q) {
+  async function runQuery(q, timeoutMs) {
     let lastErr = null;
     for (const url of ENDPOINTS) {
       try {
-        const res = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q),
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+        const res = await root.Terrain.fetchWithTimeout(url, { method: 'POST', body: 'data=' + encodeURIComponent(q),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, timeoutMs);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         // 시간 초과 등은 HTTP 200에 remark로만 알려 준다
         if (json.remark && /error|timed out|out of memory/i.test(json.remark)) throw new Error(json.remark);
         return json.elements || [];
       } catch (e) {
-        lastErr = e;
+        lastErr = e.name === 'AbortError' ? new Error('응답 시간 초과') : e;
       }
     }
     throw lastErr || new Error('no endpoint');
   }
 
-  async function load(lat, lon) {
+  // onUpdate(data)는 가까운 건물이 도착했을 때, 먼 고층 건물까지 도착했을 때 각각 불린다.
+  // 반환 promise는 두 요청이 모두 끝나면 최종 data로 풀리고, 둘 다 실패하면 거부된다.
+  async function load(lat, lon, onUpdate) {
     const key = lat.toFixed(4) + ',' + lon.toFixed(4);
-    if (cache.has(key)) return cache.get(key);
-    const [near, far] = await Promise.allSettled([runQuery(nearQuery(lat, lon)), runQuery(farQuery(lat, lon))]);
-    if (near.status === 'rejected' && far.status === 'rejected') throw near.reason;
+    if (cache.has(key)) {
+      if (onUpdate) onUpdate(cache.get(key));
+      return cache.get(key);
+    }
     const kx = 111320 * Math.cos((lat * Math.PI) / 180), ky = 110540;
     const seen = new Set();
-    const list = [];
-    for (const r of [near, far]) {
-      if (r.status !== 'fulfilled') continue;
-      for (const el of r.value) {
+    const data = { list: [], nearOk: null, farOk: null, done: false };
+    const add = (elements) => {
+      for (const el of elements) {
         if (seen.has(el.id) || !el.geometry || el.geometry.length < 3) continue;
         seen.add(el.id);
         const pts = el.geometry.map((g) => [(g.lon - lon) * kx, (g.lat - lat) * ky]);
-        list.push({ pts, h: heightOf(el.tags || {}) });
+        data.list.push({ pts, h: heightOf(el.tags || {}) });
       }
-    }
-    const data = { list, nearOk: near.status === 'fulfilled', farOk: far.status === 'fulfilled' };
+    };
+    const part = (q, ms, flag) => runQuery(q, ms).then((els) => {
+      add(els);
+      data[flag] = true;
+      if (onUpdate) onUpdate(data);
+    }, (e) => {
+      data[flag] = false;
+      throw e;
+    });
+    const [near, far] = await Promise.allSettled([part(nearQuery(lat, lon), 30000, 'nearOk'), part(farQuery(lat, lon), 70000, 'farOk')]);
+    data.done = true;
+    if (near.status === 'rejected' && far.status === 'rejected') throw near.reason;
     if (data.nearOk && data.farOk) cache.set(key, data);
     return data;
   }
@@ -1426,7 +1487,7 @@ way["building"]["building:levels"]${a}(if:number(t["building:levels"])>=16);
   }
 
   // 지형 고도 자료로 (방위, 거리) 지점의 땅 높이를 관측 지점 대비로 추정한다.
-  // 고도 자료(90 m)는 건물 높이가 일부 섞인 표면 모델이라, 앞뒤 표본 중 낮은 쪽을 쓴다.
+  // 고도 자료가 성겨서(수십~수백 m) 앞뒤 표본 중 낮은 쪽을 써 건물이 떠 보이지 않게 한다.
   function groundFn(terrain) {
     if (!terrain || !terrain.grid) return () => 0;
     const dist = terrain.distKm;
@@ -2388,8 +2449,14 @@ void main() {
     $('lat').value = lat.toFixed(4);
     $('lon').value = lon.toFixed(4);
     state.localInfo = null;
-    state.offsetMin = Math.round(lon / 15) * 60;
-    state.tzName = '경도 기준 추정';
+    const browserOff = -new Date().getTimezoneOffset();
+    if (Math.abs(browserOff - (lon / 15) * 60) <= 90) {
+      state.offsetMin = browserOff;
+      state.tzName = '이 기기 시간대';
+    } else {
+      state.offsetMin = Math.round(lon / 15) * 60;
+      state.tzName = '경도 기준 추정';
+    }
     $('placeName').textContent = name || `${fmtCoord(lat, '북위', '남위')} ${fmtCoord(lon, '동경', '서경')}`;
     updateMeta();
     setTime(sky.time);
@@ -2412,27 +2479,36 @@ void main() {
       updateMeta();
       showStatus('실제 지형(수치표고모델)을 적용했습니다', 2500);
       requestDraw();
-    }).catch(() => {
+    }).catch((e) => {
       if (token !== state.loadToken) return;
+      console.warn('지형 자료 오류:', e);
       state.elevation = null;
-      showStatus('지형 자료를 받지 못해 가상 지형을 표시합니다 (오프라인?)', 4000);
+      state.terrainStatus = '지형 자료 실패 → 가상 지형';
+      updateMeta();
+      showStatus('지형 자료를 받지 못해 가상 지형을 표시합니다', 4000);
     });
 
     state.buildingStatus = '건물 불러오는 중…';
-    window.Buildings.load(lat, lon).then((data) => {
+    state.terrainStatus = '';
+    const onBuildings = (data) => {
       if (token !== state.loadToken) return;
       state.buildingData = data;
       const n = data.list.length;
       state.buildingStatus = n ? `건물 ${n.toLocaleString()}개` : '주변에 등록된 건물 없음';
-      if (!data.nearOk || !data.farOk) state.buildingStatus += ' (일부만 받음)';
+      if (!data.done) state.buildingStatus += ' (먼 고층 건물 받는 중…)';
+      else if (!data.nearOk || !data.farOk) state.buildingStatus += ' (일부만 받음)';
       applyEyeHeight();
       updateMeta();
-      showStatus(n ? `주변 건물 ${n.toLocaleString()}개를 반영했습니다 (OpenStreetMap)`
-        : 'OpenStreetMap에 이 주변 건물이 등록되어 있지 않습니다', 4000);
+    };
+    window.Buildings.load(lat, lon, onBuildings).then((data) => {
+      onBuildings(data);
+      if (token === state.loadToken && data.list.length) {
+        showStatus(`주변 건물 ${data.list.length.toLocaleString()}개를 반영했습니다 (OpenStreetMap)`, 3000);
+      }
     }).catch((e) => {
       if (token !== state.loadToken) return;
       console.warn('건물 자료 오류:', e);
-      state.buildingStatus = '건물 자료 실패';
+      state.buildingStatus = `건물 자료 실패 (${e.message})`;
       updateMeta();
       showStatus('건물 서버(OpenStreetMap Overpass)가 응답하지 않습니다. 잠시 후 "이 위치의 하늘 보기"를 다시 눌러 주세요', 6000);
     });
@@ -2475,6 +2551,7 @@ void main() {
     const li = state.localInfo;
     if (li && li.cloudCover != null) parts.push(`현재 구름 ${li.cloudCover}%`);
     if (li && li.temperature != null) parts.push(`${li.temperature}°C`);
+    if (state.terrainStatus) parts.push(state.terrainStatus);
     if (state.buildingStatus) parts.push(state.buildingStatus);
     $('placeMeta').textContent = parts.join(' · ');
     $('tzLabel').textContent = `(${state.tzName ? state.tzName + ', ' : ''}${formatOffset(state.offsetMin)})`;

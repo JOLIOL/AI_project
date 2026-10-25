@@ -1,5 +1,5 @@
 // 관측 지점 주변 지형으로 지평선 윤곽(산 능선)을 만든다.
-// 고도 자료: Open-Meteo Elevation API (Copernicus DEM 90 m). 실패하면 위치 기반 가상 지형을 쓴다.
+// 고도 자료: AWS Terrain Tiles (SRTM 등, terrarium PNG). 실패하면 위치 기반 가상 지형을 쓴다.
 (function (root) {
   'use strict';
 
@@ -22,27 +22,74 @@
     return [(p2 * 180) / Math.PI, ((((l2 * 180) / Math.PI + 540) % 360) - 180)];
   }
 
-  async function fetchElevations(points, onProgress) {
-    const out = new Array(points.length);
-    const chunks = [];
-    for (let i = 0; i < points.length; i += 100) chunks.push(i);
+  // 고도 타일 (AWS Terrain Tiles, terrarium 형식: 고도 = R·256 + G + B/256 − 32768 m).
+  // 가까운 곳은 촘촘한 줌, 먼 곳은 성긴 줌의 타일에서 값을 읽는다. 호출 횟수 제한이 없다.
+  const TILE_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+  const NEAR_ZOOM = 12;
+  const FAR_ZOOM = 9;
+  const NEAR_ZOOM_KM = 5;
+  const tileCache = new Map();
+
+  function tileXY(lat, lon, z) {
+    const n = 2 ** z;
+    const r = (lat * Math.PI) / 180;
+    return [((lon + 180) / 360) * n, ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n];
+  }
+
+  async function fetchTile(z, x, y) {
+    const n = 2 ** z;
+    const key = `${z}/${((x % n) + n) % n}/${y}`;
+    if (!tileCache.has(key)) {
+      tileCache.set(key, (async () => {
+        const res = await fetchWithTimeout(TILE_URL.replace('{z}/{x}/{y}', key), {}, 20000);
+        if (!res.ok) throw new Error('고도 타일 HTTP ' + res.status);
+        const bmp = await createImageBitmap(await res.blob());
+        const c = document.createElement('canvas');
+        c.width = bmp.width;
+        c.height = bmp.height;
+        const g = c.getContext('2d', { willReadFrequently: true });
+        g.drawImage(bmp, 0, 0);
+        const px = g.getImageData(0, 0, c.width, c.height).data;
+        const elev = new Float32Array(c.width * c.height);
+        for (let i = 0; i < elev.length; i++) elev[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768;
+        return { size: c.width, elev };
+      })());
+      tileCache.get(key).catch(() => tileCache.delete(key));
+    }
+    return tileCache.get(key);
+  }
+
+  async function fetchElevations(points, zooms, onProgress) {
+    const need = new Map();
+    const coords = points.map(([lat, lon], i) => {
+      const z = zooms[i];
+      const [tx, ty] = tileXY(lat, lon, z);
+      const key = `${z}/${Math.floor(tx)}/${Math.floor(ty)}`;
+      need.set(key, [z, Math.floor(tx), Math.floor(ty)]);
+      return [z, tx, ty];
+    });
     let done = 0;
-    const worker = async () => {
-      while (chunks.length) {
-        const start = chunks.shift();
-        const part = points.slice(start, start + 100);
-        const url = 'https://api.open-meteo.com/v1/elevation?latitude=' +
-          part.map((p) => p[0].toFixed(5)).join(',') + '&longitude=' + part.map((p) => p[1].toFixed(5)).join(',');
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('elevation HTTP ' + res.status);
-        const json = await res.json();
-        json.elevation.forEach((e, k) => { out[start + k] = e; });
-        done++;
-        if (onProgress) onProgress(done / Math.ceil(points.length / 100));
-      }
-    };
-    await Promise.all([worker(), worker(), worker(), worker()]);
-    return out;
+    const tiles = new Map();
+    await Promise.all([...need].map(async ([key, [z, x, y]]) => {
+      tiles.set(key, await fetchTile(z, x, y));
+      done++;
+      if (onProgress) onProgress(done / need.size);
+    }));
+    return coords.map(([z, tx, ty]) => {
+      const t = tiles.get(`${z}/${Math.floor(tx)}/${Math.floor(ty)}`);
+      const s = t.size;
+      const fx = Math.min(s - 1.001, Math.max(0, (tx - Math.floor(tx)) * s - 0.5));
+      const fy = Math.min(s - 1.001, Math.max(0, (ty - Math.floor(ty)) * s - 0.5));
+      const x0 = Math.floor(fx), y0 = Math.floor(fy), u = fx - x0, v = fy - y0;
+      const e = (x, y) => t.elev[y * s + x];
+      return (e(x0, y0) * (1 - u) + e(x0 + 1, y0) * u) * (1 - v) + (e(x0, y0 + 1) * (1 - u) + e(x0 + 1, y0 + 1) * u) * v;
+    });
+  }
+
+  function fetchWithTimeout(url, opts, ms) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), ms);
+    return fetch(url, Object.assign({}, opts, { signal: ctl.signal })).finally(() => clearTimeout(timer));
   }
 
   function elevationAngle(h0, h, distKm) {
@@ -71,7 +118,7 @@
       for (let k = 0; k < DIST_KM.length; k++) {
         const h = grid[a][k];
         if (h == null || Number.isNaN(h)) continue;
-        const ang = elevationAngle(eye, h, DIST_KM[k]);
+        const ang = elevationAngle(eye, Math.max(h, 0), DIST_KM[k]); // 바다(음수 수심)는 수면 0 m
         far = Math.max(far, ang);
         if (DIST_KM[k] <= MID_KM) mid = Math.max(mid, ang);
         if (DIST_KM[k] <= NEAR_KM) near = Math.max(near, ang);
@@ -111,10 +158,12 @@
     for (let a = 0; a < N_AZ; a++) {
       for (const d of DIST_KM) points.push(destination(lat, lon, (a * 360) / N_AZ, d));
     }
-    const elev = await fetchElevations(points, onProgress);
+    const zooms = [NEAR_ZOOM];
+    for (let a = 0; a < N_AZ; a++) for (const d of DIST_KM) zooms.push(d <= NEAR_ZOOM_KM ? NEAR_ZOOM : FAR_ZOOM);
+    const elev = await fetchElevations(points, zooms, onProgress);
     const grid = [];
     for (let a = 0; a < N_AZ; a++) grid.push(elev.slice(1 + a * DIST_KM.length, 1 + (a + 1) * DIST_KM.length));
-    const prof = buildProfile(elev[0] || 0, grid);
+    const prof = buildProfile(Math.max(elev[0] || 0, 0), grid);
     prof.source = 'dem';
     cache.set(key, prof);
     return prof;
@@ -132,7 +181,7 @@
   async function loadLocalInfo(lat, lon) {
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat.toFixed(4) + '&longitude=' + lon.toFixed(4) +
       '&timezone=auto&current=cloud_cover,temperature_2m,is_day';
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, {}, 15000);
     if (!res.ok) throw new Error('forecast HTTP ' + res.status);
     const j = await res.json();
     return {
@@ -144,7 +193,7 @@
   // 지명 (OpenStreetMap Nominatim)
   async function reverseGeocode(lat, lon) {
     const url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=ko&lat=' + lat + '&lon=' + lon;
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, {}, 15000);
     if (!res.ok) throw new Error('geocode HTTP ' + res.status);
     const j = await res.json();
     if (j.error) return null;
@@ -155,10 +204,10 @@
 
   async function searchPlace(query) {
     const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=ko&q=' + encodeURIComponent(query);
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, {}, 15000);
     if (!res.ok) throw new Error('search HTTP ' + res.status);
     return (await res.json()).map((r) => ({ name: r.display_name, lat: +r.lat, lon: +r.lon }));
   }
 
-  root.Terrain = { N_AZ, EYE_HEIGHT_M, loadHorizon, reprofile, syntheticProfile, emptyProfile, loadLocalInfo, reverseGeocode, searchPlace };
+  root.Terrain = { N_AZ, fetchWithTimeout, EYE_HEIGHT_M, loadHorizon, reprofile, syntheticProfile, emptyProfile, loadLocalInfo, reverseGeocode, searchPlace };
 })(window);

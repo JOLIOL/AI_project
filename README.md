@@ -22,7 +22,7 @@ python3 -m http.server 8000
 ## 기능
 
 - **위치 지정**: 위도/경도 입력, 지도 클릭, 장소 이름 검색, 내 위치(GPS), 추천 관측지
-- **실제 지형 배경**: 관측 지점 주변 반경 50 km의 수치표고모델(Open-Meteo, Copernicus DEM 90 m)로
+- **실제 지형 배경**: 관측 지점 주변 반경 50 km의 고도 자료(AWS Terrain Tiles: SRTM 등, 가까운 곳 약 30 m·먼 곳 약 250 m 간격)로
   방위 2°마다 산 능선을 계산해 가까운 산·먼 산을 층으로 그립니다. 지구 곡률과 대기 굴절을 반영하고,
   바다 방향은 수면과 달빛·햇빛 반사로 표현합니다.
 - **실제 건물**: OpenStreetMap에 등록된 건물(반경 700 m의 모든 건물 + 6 km 안의 고층 건물)을 불러와
@@ -66,7 +66,8 @@ python3 tools/build_data.py package/data data/sky-data.js
 ## 출처
 
 - 별·별자리·은하수 자료: [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3, Olaf Frohn) — `data/LICENSE-d3-celestial`
-- 지형 고도·시간대·날씨: [Open-Meteo](https://open-meteo.com/)
+- 지형 고도: [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Mapzen, SRTM·GMTED·ETOPO1 등)
+- 시간대·날씨: [Open-Meteo](https://open-meteo.com/)
 - 건물: [OpenStreetMap](https://www.openstreetmap.org/copyright) (Overpass API, ODbL)
 - 지명 검색: [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org/)
 - 위성 사진: Esri World Imagery, 지도: OpenStreetMap

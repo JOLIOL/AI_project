@@ -38,42 +38,54 @@ way["building"]["building:levels"]${a}(if:number(t["building:levels"])>=16);
     return DEFAULT_HEIGHT[tags.building] || 9;
   }
 
-  async function runQuery(q) {
+  async function runQuery(q, timeoutMs) {
     let lastErr = null;
     for (const url of ENDPOINTS) {
       try {
-        const res = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q),
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+        const res = await root.Terrain.fetchWithTimeout(url, { method: 'POST', body: 'data=' + encodeURIComponent(q),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, timeoutMs);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         // 시간 초과 등은 HTTP 200에 remark로만 알려 준다
         if (json.remark && /error|timed out|out of memory/i.test(json.remark)) throw new Error(json.remark);
         return json.elements || [];
       } catch (e) {
-        lastErr = e;
+        lastErr = e.name === 'AbortError' ? new Error('응답 시간 초과') : e;
       }
     }
     throw lastErr || new Error('no endpoint');
   }
 
-  async function load(lat, lon) {
+  // onUpdate(data)는 가까운 건물이 도착했을 때, 먼 고층 건물까지 도착했을 때 각각 불린다.
+  // 반환 promise는 두 요청이 모두 끝나면 최종 data로 풀리고, 둘 다 실패하면 거부된다.
+  async function load(lat, lon, onUpdate) {
     const key = lat.toFixed(4) + ',' + lon.toFixed(4);
-    if (cache.has(key)) return cache.get(key);
-    const [near, far] = await Promise.allSettled([runQuery(nearQuery(lat, lon)), runQuery(farQuery(lat, lon))]);
-    if (near.status === 'rejected' && far.status === 'rejected') throw near.reason;
+    if (cache.has(key)) {
+      if (onUpdate) onUpdate(cache.get(key));
+      return cache.get(key);
+    }
     const kx = 111320 * Math.cos((lat * Math.PI) / 180), ky = 110540;
     const seen = new Set();
-    const list = [];
-    for (const r of [near, far]) {
-      if (r.status !== 'fulfilled') continue;
-      for (const el of r.value) {
+    const data = { list: [], nearOk: null, farOk: null, done: false };
+    const add = (elements) => {
+      for (const el of elements) {
         if (seen.has(el.id) || !el.geometry || el.geometry.length < 3) continue;
         seen.add(el.id);
         const pts = el.geometry.map((g) => [(g.lon - lon) * kx, (g.lat - lat) * ky]);
-        list.push({ pts, h: heightOf(el.tags || {}) });
+        data.list.push({ pts, h: heightOf(el.tags || {}) });
       }
-    }
-    const data = { list, nearOk: near.status === 'fulfilled', farOk: far.status === 'fulfilled' };
+    };
+    const part = (q, ms, flag) => runQuery(q, ms).then((els) => {
+      add(els);
+      data[flag] = true;
+      if (onUpdate) onUpdate(data);
+    }, (e) => {
+      data[flag] = false;
+      throw e;
+    });
+    const [near, far] = await Promise.allSettled([part(nearQuery(lat, lon), 30000, 'nearOk'), part(farQuery(lat, lon), 70000, 'farOk')]);
+    data.done = true;
+    if (near.status === 'rejected' && far.status === 'rejected') throw near.reason;
     if (data.nearOk && data.farOk) cache.set(key, data);
     return data;
   }
@@ -88,7 +100,7 @@ way["building"]["building:levels"]${a}(if:number(t["building:levels"])>=16);
   }
 
   // 지형 고도 자료로 (방위, 거리) 지점의 땅 높이를 관측 지점 대비로 추정한다.
-  // 고도 자료(90 m)는 건물 높이가 일부 섞인 표면 모델이라, 앞뒤 표본 중 낮은 쪽을 쓴다.
+  // 고도 자료가 성겨서(수십~수백 m) 앞뒤 표본 중 낮은 쪽을 써 건물이 떠 보이지 않게 한다.
   function groundFn(terrain) {
     if (!terrain || !terrain.grid) return () => 0;
     const dist = terrain.distKm;
