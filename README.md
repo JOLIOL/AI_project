@@ -1,0 +1,61 @@
+# 밤하늘 별자리 관측기
+
+위도와 경도를 입력하면 **그 장소의 지형(산 능선·바다)과 그 시각의 밤하늘**을 보여 주는 웹 프로그램입니다.
+설치나 빌드 없이 브라우저만 있으면 실행됩니다.
+
+## 실행 방법
+
+```bash
+python3 -m http.server 8000
+# 브라우저에서 http://localhost:8000 접속
+```
+
+`index.html`을 바로 열어도 동작합니다. 지형·지명·지도는 인터넷 연결이 필요하고,
+오프라인일 때는 가상 지형으로 대신 표시합니다.
+
+## 기능
+
+- **위치 지정**: 위도/경도 입력, 지도 클릭, 장소 이름 검색, 내 위치(GPS), 추천 관측지
+- **실제 지형 배경**: 관측 지점 주변 반경 50 km의 수치표고모델(Open-Meteo, Copernicus DEM 90 m)로
+  방위 2°마다 산 능선을 계산해 가까운 산·먼 산을 층으로 그립니다. 지구 곡률과 대기 굴절을 반영하고,
+  바다 방향은 수면과 달빛·햇빛 반사로 표현합니다.
+- **위성 지도**: 선택한 위치를 위성 사진/일반 지도로 보여 주고 현재 바라보는 방향을 부채꼴로 표시합니다.
+- **밤하늘**: 6등급까지의 별 약 5,000개(색은 B−V 색지수), 88개 별자리 선과 한글 이름, 밝은 별 이름,
+  은하수, 태양·달(위상 포함)·수성·금성·화성·목성·토성
+- **시간**: 현지 시각 입력(시간대 자동 감지), 하루 시간 슬라이더, 지금/오늘 밤 버튼, 시간 흐름 재생
+- **현실감**: 해의 고도에 따른 낮·박명·밤 하늘색, 대기 소광, 빛공해 정도, 달빛, 현재 구름양 반영
+- **조작**: 드래그로 둘러보기, 휠·핀치로 확대, 방위 버튼, 전천(어안) 보기, 천체를 클릭하면 등급·고도·방위 정보
+- **공유**: 위치·시각·시야가 주소창 URL에 저장되어 그대로 공유할 수 있습니다.
+  예) `index.html?lat=33.36&lon=126.53&t=2026-10-25T12:30Z&az=180&alt=25&fov=100`
+
+## 정확도
+
+천체 위치는 항성시·세차(IAU 1976)·대기 굴절을 적용해 계산하며, astropy와 비교해 별은 1′ 이내,
+행성은 약 0.1° 이내, 달은 약 0.3° 이내로 일치합니다.
+
+## 파일 구성
+
+| 파일 | 역할 |
+| --- | --- |
+| `index.html`, `css/style.css` | 화면 구성 |
+| `js/astro.js` | 천문 계산 (항성시, 세차, 좌표 변환, 태양·달·행성 위치) |
+| `js/terrain.js` | 지형 고도 조회와 지평선 윤곽 계산, 시간대·구름양·지명 조회 |
+| `js/sky.js` | 렌더러 (WebGL 하늘·지형 + Canvas 별·라벨, 스테레오 투영) |
+| `js/app.js` | 입력, 지도, 조작, 정보창 |
+| `data/sky-data.js` | 별·별자리·은하수 자료 (`tools/build_data.py`로 생성) |
+| `vendor/leaflet/` | 지도 라이브러리 Leaflet 1.9.4 |
+
+별 자료를 다시 만들려면:
+
+```bash
+npm pack d3-celestial && tar xzf d3-celestial-*.tgz
+python3 tools/build_data.py package/data data/sky-data.js
+```
+
+## 출처
+
+- 별·별자리·은하수 자료: [d3-celestial](https://github.com/ofrohn/d3-celestial) (BSD-3, Olaf Frohn) — `data/LICENSE-d3-celestial`
+- 지형 고도·시간대·날씨: [Open-Meteo](https://open-meteo.com/)
+- 지명 검색: [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org/)
+- 위성 사진: Esri World Imagery, 지도: OpenStreetMap
+- 지도 라이브러리: [Leaflet](https://leafletjs.com/) (BSD-2)

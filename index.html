@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>밤하늘 별자리 관측기</title>
+  <meta name="description" content="위도·경도를 입력하면 그 장소의 지형(산 능선, 바다)과 그 시각의 밤하늘 별자리·행성·달을 보여줍니다.">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="sky"></div>
+
+  <header id="topbar">
+    <div class="place">
+      <div id="placeName">서울</div>
+      <div id="placeMeta" class="meta"></div>
+    </div>
+    <div id="clock" class="clock"></div>
+    <button id="togglePanel" class="icon-btn" title="설정 열기/닫기" aria-label="설정 열기/닫기">☰</button>
+  </header>
+
+  <aside id="panel">
+    <section>
+      <h2>위치</h2>
+      <form id="locForm" class="grid2">
+        <label>위도 <input id="lat" type="number" step="0.0001" min="-90" max="90" required></label>
+        <label>경도 <input id="lon" type="number" step="0.0001" min="-180" max="180" required></label>
+        <button type="submit" class="primary span2">이 위치의 하늘 보기</button>
+      </form>
+      <div class="row">
+        <button id="geoBtn" type="button">📍 내 위치</button>
+        <select id="presets" aria-label="추천 장소">
+          <option value="">추천 장소…</option>
+        </select>
+      </div>
+      <form id="searchForm" class="row">
+        <input id="searchQ" type="search" placeholder="장소 이름 검색 (예: 지리산)">
+        <button type="submit">검색</button>
+      </form>
+      <ul id="searchResults"></ul>
+    </section>
+
+    <section>
+      <h2>시간</h2>
+      <label class="block">현지 시각 <span id="tzLabel" class="meta"></span>
+        <input id="datetime" type="datetime-local" step="60">
+      </label>
+      <input id="timeSlider" type="range" min="0" max="1439" step="1" aria-label="하루 중 시각">
+      <div class="row">
+        <button id="nowBtn" type="button">지금</button>
+        <button id="tonightBtn" type="button">오늘 밤 21시</button>
+        <button id="playBtn" type="button">▶ 재생</button>
+        <select id="speed" aria-label="재생 속도">
+          <option value="60">1분/초</option>
+          <option value="600" selected>10분/초</option>
+          <option value="3600">1시간/초</option>
+        </select>
+      </div>
+    </section>
+
+    <section>
+      <h2>보기</h2>
+      <div class="checks">
+        <label><input type="checkbox" data-opt="lines" checked> 별자리 선</label>
+        <label><input type="checkbox" data-opt="conNames" checked> 별자리 이름</label>
+        <label><input type="checkbox" data-opt="starNames" checked> 별 이름</label>
+        <label><input type="checkbox" data-opt="planets" checked> 행성·달</label>
+        <label><input type="checkbox" data-opt="milkyWay" checked> 은하수</label>
+        <label><input type="checkbox" data-opt="grid"> 고도/방위 격자</label>
+        <label><input type="checkbox" data-opt="terrain" checked> 실제 지형</label>
+        <label><input type="checkbox" data-opt="atmosphere" checked> 대기·밝기 효과</label>
+        <label><input type="checkbox" id="useCloud"> 현재 구름양 반영</label>
+      </div>
+      <label class="block">빛공해 <span id="pollutionLabel" class="meta"></span>
+        <input id="pollution" type="range" min="0" max="1" step="0.05" value="0.25">
+      </label>
+      <div class="row">
+        <button type="button" data-look="0">북</button>
+        <button type="button" data-look="90">동</button>
+        <button type="button" data-look="180">남</button>
+        <button type="button" data-look="270">서</button>
+        <button type="button" id="zenithBtn">전천</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>지도 <span class="meta">(클릭해서 위치 선택)</span></h2>
+      <div id="map"></div>
+      <div class="row">
+        <label><input type="radio" name="basemap" value="sat" checked> 위성</label>
+        <label><input type="radio" name="basemap" value="osm"> 일반 지도</label>
+      </div>
+    </section>
+
+    <p class="credits">
+      별 자료: Hipparcos·Yale BSC (d3-celestial, BSD-3) · 지형·시간대: Open-Meteo · 지명: OpenStreetMap Nominatim ·
+      위성 사진: Esri World Imagery
+    </p>
+  </aside>
+
+  <div id="info" hidden></div>
+  <div id="status" hidden></div>
+  <div id="hint">드래그: 둘러보기 · 휠/핀치: 확대 · 별 클릭: 정보</div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="data/sky-data.js"></script>
+  <script src="js/astro.js"></script>
+  <script src="js/terrain.js"></script>
+  <script src="js/sky.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
