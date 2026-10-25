@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exponential Watt</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0f14; --panel: #111a22; --panel2: #16222d; --line: #22323f;
+  --text: #e3edf2; --muted: #7f95a3; --accent: #3fe0b0; --amber: #ffbf3c;
+  --bad: #ff6b6b; --violet: #b59cff; --cyan: #5ccfff;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+button { font: inherit; color: inherit; }
+.mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); text-align: center;
+  background: radial-gradient(ellipse at top, rgba(63, 224, 176, .12), transparent 70%); }
+header .title { font-size: 13px; color: var(--muted); letter-spacing: .08em; }
+#energy { font-size: clamp(30px, 7vw, 46px); font-weight: 800; color: var(--accent); margin: 2px 0;
+  text-shadow: 0 0 18px rgba(63, 224, 176, .35); }
+#rate { color: var(--muted); font-size: 15px; }
+#rate b { color: var(--text); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 460px); gap: 12px; padding: 12px; max-width: 1200px; margin: 0 auto; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.stack { display: grid; gap: 12px; align-content: start; }
+
+#formula { text-align: center; font-size: clamp(18px, 3.4vw, 26px); padding: 6px 0 2px; }
+#formula .sym { color: var(--amber); }
+#formulaVals { text-align: center; color: var(--muted); font-size: 13px; line-height: 1.7; }
+#formulaVals b { color: var(--text); font-weight: 600; }
+
+#circuit { display: block; width: 100%; height: 210px; cursor: pointer; touch-action: manipulation; }
+#tapBtn { width: 100%; padding: 14px; margin-top: 8px; border-radius: 12px; border: 1px solid var(--amber);
+  background: linear-gradient(180deg, rgba(255, 191, 60, .2), rgba(255, 191, 60, .06)); font-size: 17px; font-weight: 800;
+  cursor: pointer; touch-action: manipulation; user-select: none; }
+#tapBtn:active { transform: scale(.985); }
+.boost { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--muted); }
+.meter { height: 8px; border-radius: 4px; background: var(--panel2); overflow: hidden; }
+.meter > div { height: 100%; background: var(--amber); width: 0; }
+
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+.tabs button { flex: 1 1 auto; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel2);
+  cursor: pointer; font-size: 14px; font-weight: 600; position: relative; }
+.tabs button.on { border-color: var(--accent); color: var(--accent); }
+.tabs button .dot { position: absolute; top: 4px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg button { padding: 5px 10px; border: 0; background: transparent; cursor: pointer; font-size: 13px; }
+.seg button.on { background: var(--accent); color: #05261c; font-weight: 700; }
+.small { font-size: 12px; color: var(--muted); }
+
+.upg { display: grid; grid-template-columns: 44px minmax(0, 1fr) 120px; gap: 10px; align-items: center;
+  padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); margin-top: 8px; }
+.upg .sym { font-size: 20px; font-weight: 800; color: var(--amber); text-align: center; }
+.upg .name { font-weight: 700; font-size: 14px; }
+.upg .lvl { color: var(--muted); font-weight: 500; font-size: 12px; margin-left: 4px; }
+.upg .eff { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.buy { padding: 8px 6px; border-radius: 9px; border: 1px solid var(--accent); background: rgba(63, 224, 176, .12);
+  cursor: pointer; font-size: 13px; font-weight: 700; line-height: 1.3; }
+.buy:disabled { border-color: var(--line); background: transparent; color: var(--muted); cursor: not-allowed; }
+.buy small { display: block; font-weight: 500; font-size: 11px; }
+.locked { padding: 10px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 13px; margin-top: 8px; text-align: center; }
+
+.big { font-size: 22px; font-weight: 800; }
+.pbox { padding: 12px; border-radius: 10px; background: var(--panel2); margin: 8px 0; line-height: 1.7; }
+.action { width: 100%; padding: 12px; border-radius: 10px; border: 0; background: var(--accent); color: #05261c; font-weight: 800; font-size: 15px; cursor: pointer; }
+.action:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
+.action.violet { background: var(--violet); color: #1b1038; }
+.action.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); font-weight: 600; }
+
+.res { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 10px; align-items: center;
+  padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); margin-top: 8px; }
+.res .name { font-weight: 700; font-size: 14px; }
+.res .eff { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.pips { color: var(--violet); letter-spacing: 2px; font-size: 11px; }
+.res .buy { border-color: var(--violet); background: rgba(181, 156, 255, .12); }
+.res .buy:disabled { border-color: var(--line); background: transparent; }
+
+.ach { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.ach div { padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); font-size: 12px; color: var(--muted); }
+.ach div b { display: block; font-size: 13px; color: var(--muted); }
+.ach div.got { border-color: var(--amber); }
+.ach div.got b { color: var(--amber); }
+
+table.stats { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.stats td { padding: 5px 2px; border-bottom: 1px solid var(--line); }
+table.stats td:last-child { text-align: right; }
+textarea { width: 100%; height: 70px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: 12px ui-monospace, monospace; }
+
+#toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: grid; gap: 6px; z-index: 10; pointer-events: none; width: min(92vw, 380px); }
+#toast div { background: #1d2c38; border: 1px solid var(--amber); border-radius: 10px; padding: 9px 12px; font-size: 13px; animation: toast 4s forwards; }
+@keyframes toast { 0% { opacity: 0; transform: translateY(8px); } 8%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+#modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: grid; place-items: center; z-index: 20; padding: 16px; }
+#modal .card { max-width: 380px; width: 100%; text-align: center; line-height: 1.7; }
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
+  .upg { grid-template-columns: 34px minmax(0, 1fr) 104px; gap: 8px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="title">EXPONENTIAL WATT · 저장된 에너지</div>
+  <div id="energy" class="mono">0 J</div>
+  <div id="rate"></div>
+</header>
+
+<div class="layout">
+  <section class="stack">
+    <div class="card">
+      <div id="formula" class="mono"></div>
+      <div id="formulaVals" class="mono"></div>
+    </div>
+    <div class="card">
+      <canvas id="circuit"></canvas>
+      <button id="tapBtn">⚡ 스위치 딸깍!</button>
+      <div class="boost"><span>서지 부스트</span><div class="meter"><div id="boostBar"></div></div><span id="boostTxt" class="mono">×1.00</span></div>
+      <div class="small" style="margin-top:6px">누를 때마다 회로에 서지 전류가 흘러 시간이 빨리 갑니다. 가만히 두면 천천히 줄어듭니다.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="tabs" id="tabs"></div>
+    <div id="panel"></div>
+  </section>
+</div>
+
+<div id="toast"></div>
+<div id="modal" hidden><div class="card" id="modalBody"></div></div>
+
+<script>
+'use strict';
+
+// =============== 정의 ===============
+const UPG = {
+  v1: { sym: 'V₁', name: '전지 직렬 연결', base: 10, ratio: 1.4, start: 1,
+        eff: n => `V₁ = ${fmtN(n)} V → ${fmtN(n + 1)} V` },
+  r:  { sym: 'R', name: '굵은 도선', base: 40, ratio: 2.1, start: 0,
+        eff: n => `R = ${fmtN(resist(n))} Ω → ${fmtN(resist(n + 1))} Ω` },
+  v2: { sym: 'V₂', name: '승압 변압기', base: 1000, ratio: 10, start: 0, unlockE: 100,
+        eff: n => `전압 ×2 · 지금 ×${fmtN(2 ** n)}` },
+  c:  { sym: 'C', name: '커패시터', base: 5e3, ratio: 3, start: 0, unlockE: 1500,
+        eff: n => `충전 q̇ = ${fmtN(qRate(n))} → ${fmtN(qRate(n + 1))} /s` },
+  L:  { sym: 'L', name: '인덕터', base: 1e15, ratio: 1000, start: 0, max: 10, research: 'ind',
+        eff: n => `V 지수 ${(vExp(n)).toFixed(2)} → ${(vExp(Math.min(n + 1, 10))).toFixed(2)}` },
+};
+const UPG_ORDER = ['v1', 'r', 'v2', 'c', 'L'];
+
+const RESEARCH = [
+  { id: 'auto', name: '자동화 회로', desc: '변수 업그레이드를 자동으로 구매합니다', cost: [1] },
+  { id: 'sc', name: '초전도 배선', desc: '전력 ×3 (레벨마다)', cost: [1, 2, 3, 5, 8] },
+  { id: 'cap', name: '슈퍼커패시터', desc: '충전 속도 q̇ ×3 (레벨마다)', cost: [1, 2, 4] },
+  { id: 'surge', name: '서지 발생기', desc: '탭 부스트 최대치 +1 (레벨마다)', cost: [1, 1, 2] },
+  { id: 'ieee', name: 'IEEE 저널', desc: '출판 배수 지수 +0.005 (레벨마다)', cost: [2, 3, 4, 6] },
+  { id: 'clk', name: '오버클럭', desc: '게임 속도 ×1.25 (레벨마다)', cost: [2, 4, 6] },
+  { id: 'ess', name: 'ESS 배터리', desc: '오프라인 효율 +25%p, 최대 시간 +8시간', cost: [2, 3] },
+  { id: 'ind', name: '인덕터 해금', desc: '새 변수 L: 전압의 지수를 올립니다', cost: [4] },
+  { id: 'ac3', name: '3상 교류', desc: '최종 연구: 전압의 지수 ×1.03', cost: [25], req: 'ind' },
+];
+
+const ACH = [
+  ['k', '첫 킬로줄', '1 kJ 모으기', s => s.maxEver >= 1e3],
+  ['M', '메가줄', '1 MJ 모으기', s => s.maxEver >= 1e6],
+  ['G', '번개 한 방', '1 GJ 모으기 (번개 한 번의 에너지)', s => s.maxEver >= 1e9],
+  ['T', '테라줄', '1 TJ 모으기', s => s.maxEver >= 1e12],
+  ['E', '엑사줄', '1 EJ 모으기', s => s.maxEver >= 1e18],
+  ['Y', '요타줄', '1 YJ 모으기', s => s.maxEver >= 1e24],
+  ['Q', '퀘타줄', '1 QJ 모으기 (SI 접두어 끝)', s => s.maxEver >= 1e30],
+  ['sun', '태양을 넘어서', '1e50 J 모으기 (태양은 1초에 3.8e26 J)', s => s.maxEver >= 1e50],
+  ['gg', '구골 줄', '1e100 J 모으기', s => s.maxEver >= 1e100],
+  ['pub1', '첫 논문', '처음으로 출판하기', s => s.pubTotal >= 1],
+  ['pub10', '다작 연구자', '출판 10회', s => s.pubTotal >= 10],
+  ['mu100', '인용 폭발', '출판 배수 ×100 달성', s => s.mu >= 100],
+  ['grad', '첫 엔지니어', '엔지니어 채용하기', s => s.engEarned >= 1],
+  ['eng20', '연구소장', '엔지니어 20명', s => s.engEarned >= 20],
+  ['tap', '손가락 운동', '스위치 200번 누르기', s => s.taps >= 200],
+  ['tap2', '스위치 바운싱', '스위치 2000번 누르기', s => s.taps >= 2000],
+  ['tr', '변압기 탑', 'V₂ 레벨 20', s => s.lv.v2 >= 20],
+  ['q', '만충전', '충전량 q 10,000 넘기기', s => s.q >= 1e4],
+  ['coil', '완벽한 코일', 'L 최대 레벨', s => s.lv.L >= 10],
+  ['ac', '전류 전쟁의 승자', '3상 교류 연구', s => (s.res.ac3 | 0) >= 1],
+];
+
+const PUB_UNLOCK = 1e9, GRAD_UNLOCK = 1e25, MAX_E = 1e300;
+
+// =============== 상태 ===============
+function freshLevels() { return { v1: 1, r: 0, v2: 0, c: 0, L: 0 }; }
+function newGame() {
+  return {
+    E: 0, q: 0, lv: freshLevels(), mu: 1, runMax: 0, maxEver: 0,
+    pubs: 0, pubTotal: 0, engEarned: 0, engFree: 0, grads: 0, res: {}, ach: {},
+    taps: 0, boost: 0, time: 0, runTime: 0, autoOn: true, buyMode: 1, notation: 'si',
+    tab: 'upg', seen: {}, lastSave: Date.now(),
+  };
+}
+let S = newGame();
+
+// =============== 공식 ===============
+const resist = n => 1 / (1 + 0.25 * n);
+const qRate = n => 0.05 * n * 3 ** (S.res.cap | 0);
+const vExp = n => 2 + 0.03 * n;
+const voltage = () => S.lv.v1 * 2 ** S.lv.v2;
+const phi = () => (1 + S.q) ** 0.4;
+const achMult = () => 1 + 0.03 * Object.keys(S.ach).length;
+const resMult = () => 3 ** (S.res.sc | 0);
+const pubExp = () => 0.1 + 0.005 * (S.res.ieee | 0);
+const speed = () => 1.25 ** (S.res.clk | 0);
+const boostCap = () => 2 + (S.res.surge | 0);
+const boostMult = () => 1 + S.boost;
+function power() {
+  const ex = vExp(S.lv.L) * ((S.res.ac3 | 0) ? 1.03 : 1);
+  const p = S.mu * achMult() * resMult() * voltage() ** ex / resist(S.lv.r) * phi();
+  return Math.min(p, MAX_E);
+}
+const pubCandidate = () => Math.max(1, S.runMax ** pubExp());
+const engTotal = m => (m < GRAD_UNLOCK ? 0 : Math.floor(2 * (Math.log10(m) - 23)));
+const engGain = () => Math.max(0, engTotal(S.maxEver) - S.engEarned);
+const unlockedUpg = id => {
+  const u = UPG[id];
+  if (u.research) return (S.res[u.research] | 0) > 0;
+  return !u.unlockE || S.maxEver >= u.unlockE;
+};
+
+// 구매 비용 (등비급수)
+function costOf(id, k) {
+  const u = UPG[id], n = S.lv[id] - u.start;
+  return u.base * u.ratio ** n * (u.ratio ** k - 1) / (u.ratio - 1);
+}
+function maxAffordable(id) {
+  const u = UPG[id], n = S.lv[id] - u.start;
+  const first = u.base * u.ratio ** n;
+  if (S.E < first) return 0;
+  let k = Math.floor(Math.log(S.E * (u.ratio - 1) / first + 1) / Math.log(u.ratio));
+  if (u.max != null) k = Math.min(k, u.max - S.lv[id]);
+  while (k > 0 && costOf(id, k) > S.E) k--;
+  return Math.max(0, k);
+}
+function buyCount(id) {
+  const u = UPG[id];
+  const left = u.max != null ? u.max - S.lv[id] : Infinity;
+  if (S.buyMode === 'max') return Math.max(1, Math.min(maxAffordable(id), left));
+  return Math.min(S.buyMode, left);
+}
+function buy(id, k) {
+  if (k <= 0 || !unlockedUpg(id)) return false;
+  const c = costOf(id, k);
+  if (c > S.E) return false;
+  S.E -= c;
+  S.lv[id] += k;
+  return true;
+}
+
+// =============== 진행 ===============
+function step(dt) {
+  const P = power();
+  S.E = Math.min(MAX_E, S.E + P * dt);
+  S.q += qRate(S.lv.c) * dt;
+  S.runMax = Math.max(S.runMax, S.E);
+  S.maxEver = Math.max(S.maxEver, S.E);
+  S.time += dt; S.runTime += dt;
+  if ((S.res.auto | 0) && S.autoOn) autoBuy();
+}
+function autoBuy() {
+  // 싼 것부터 사서 모든 변수를 고르게 올림
+  for (let guard = 0; guard < 200; guard++) {
+    let best = null, bestC = Infinity;
+    for (const id of UPG_ORDER) {
+      if (!unlockedUpg(id) || (UPG[id].max != null && S.lv[id] >= UPG[id].max)) continue;
+      const c = costOf(id, 1);
+      if (c < bestC) { bestC = c; best = id; }
+    }
+    if (!best || bestC > S.E) break;
+    buy(best, 1);
+  }
+}
+function tick(dtReal) {
+  S.boost = Math.max(0, S.boost - dtReal * 0.35 * (1 + S.boost * 0.5));
+  step(dtReal * speed() * boostMult());
+}
+
+function publish() {
+  const m = pubCandidate();
+  if (m <= S.mu) return;
+  S.mu = m; S.pubs++; S.pubTotal++;
+  resetRun();
+  toast(`📄 논문 출판! 출판 배수 ×${fmtN(m)}`);
+  render(true);
+}
+function graduate() {
+  const g = engGain();
+  if (g < 1) return;
+  S.engEarned += g; S.engFree += g; S.grads++;
+  S.mu = 1; S.pubs = 0;
+  resetRun();
+  toast(`👷 엔지니어 ${g}명 채용!`);
+  render(true);
+}
+function resetRun() {
+  S.E = 0; S.q = 0; S.lv = freshLevels(); S.runMax = 0; S.runTime = 0;
+}
+function researchCost(r) { return r.cost[S.res[r.id] | 0]; }
+function doResearch(id) {
+  const r = RESEARCH.find(x => x.id === id), lvl = S.res[id] | 0;
+  if (lvl >= r.cost.length || (r.req && !(S.res[r.req] | 0))) return;
+  const c = r.cost[lvl];
+  if (S.engFree < c) return;
+  S.engFree -= c;
+  S.res[id] = lvl + 1;
+  render(true);
+}
+function respec() {
+  if (!confirm('연구를 모두 되돌리고 엔지니어를 돌려받을까요?')) return;
+  S.res = {}; S.engFree = S.engEarned;
+  render(true);
+}
+function checkAch() {
+  for (const [id, name] of ACH) {
+    if (!S.ach[id] && ACH.find(a => a[0] === id)[3](S)) {
+      S.ach[id] = true;
+      toast(`🏅 업적 달성: ${name} (전력 +3%)`);
+    }
+  }
+}
+
+// =============== 표기 ===============
+const PREF = ['', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y', 'R', 'Q'];
+function fmtN(x, unit) {
+  const u = unit ? ' ' + unit : '';
+  if (!isFinite(x)) return '∞' + u;
+  if (x < 1000) {
+    if (x === 0) return '0' + u;
+    return (x < 1 ? x.toPrecision(3) : x < 10 ? x.toFixed(2) : x < 100 ? x.toFixed(1) : x.toFixed(0)) + u;
+  }
+  let e = Math.floor(Math.log10(x));
+  if (S.notation === 'si' && unit != null && e < 33) {
+    let k = Math.floor(e / 3), v = x / 10 ** (3 * k);
+    if (v >= 999.5) { k++; v /= 1000; }
+    if (k < PREF.length) return v.toFixed(v < 10 ? 2 : v < 100 ? 1 : 0) + ' ' + PREF[k] + unit;
+  }
+  let m = x / 10 ** e;
+  if (m >= 9.995) { m /= 10; e++; }
+  return m.toFixed(2) + 'e' + e + u;
+}
+function fmtTime(s) {
+  s = Math.floor(s);
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+  return h ? `${h}시간 ${m}분` : m ? `${m}분 ${s % 60}초` : `${s}초`;
+}
+
+// =============== 저장 ===============
+const KEY = 'exponential-watt.v1';
+function save() {
+  S.lastSave = Date.now();
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 무시 */ }
+}
+function restore(obj) {
+  const base = newGame();
+  const s = Object.assign(base, obj);
+  s.lv = Object.assign(freshLevels(), obj.lv || {});
+  s.res = obj.res || {}; s.ach = obj.ach || {}; s.seen = obj.seen || {};
+  return s;
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) S = restore(JSON.parse(raw));
+  } catch (e) { S = newGame(); }
+}
+function offlineProgress() {
+  const away = (Date.now() - S.lastSave) / 1000;
+  if (!(away > 60)) return;
+  const ess = S.res.ess | 0;
+  const eff = 0.5 + 0.25 * ess, cap = (8 + 8 * ess) * 3600;
+  const sim = Math.min(away, cap) * eff * speed();
+  const before = S.E, steps = 400;
+  S.boost = 0;
+  for (let i = 0; i < steps; i++) step(sim / steps);
+  checkAch();
+  showModal(`<div class="big">⏰ 다녀오셨네요!</div>`
+    + `<p>${fmtTime(away)} 동안 자리를 비웠습니다.<br>오프라인 효율 ${Math.round(eff * 100)}%로<br>`
+    + `<b class="mono" style="color:var(--accent)">+${fmtN(Math.max(0, S.E - before), 'J')}</b> 를 모았습니다.</p>`
+    + `<button class="action" onclick="hideModal()">좋아요</button>`);
+}
+
+// =============== 화면 ===============
+const $ = id => document.getElementById(id);
+function toast(t) {
+  const d = document.createElement('div');
+  d.textContent = t;
+  const box = $('toast');
+  box.appendChild(d);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => d.remove(), 4000);
+}
+function showModal(html) { $('modalBody').innerHTML = html; $('modal').hidden = false; }
+function hideModal() { $('modal').hidden = true; }
+
+function tabsAvail() {
+  const t = [['upg', '⚙ 변수']];
+  if (S.maxEver >= PUB_UNLOCK || S.pubTotal) t.push(['pub', '📄 출판']);
+  if (S.maxEver >= GRAD_UNLOCK || S.engEarned) t.push(['eng', '👷 연구']);
+  t.push(['ach', '🏅 업적'], ['set', '📊 통계']);
+  return t;
+}
+let panelKey = '', tabsHTML = '';
+function render(force) {
+  const tabs = tabsAvail();
+  if (!tabs.some(t => t[0] === S.tab)) S.tab = 'upg';
+  const key = S.tab + '|' + tabs.map(t => t[0]).join(',') + '|' + UPG_ORDER.filter(unlockedUpg).join(',')
+    + '|' + JSON.stringify(S.res) + '|' + Object.keys(S.ach).length;
+  for (const [id] of tabs) if (!S.seen[id]) S.seen[id] = id === S.tab ? 1 : 0;
+  const tabHTML = tabs.map(([id, label]) =>
+    `<button data-tab="${id}" class="${id === S.tab ? 'on' : ''}">${label}${S.seen[id] ? '' : '<span class="dot"></span>'}</button>`).join('');
+  // 매 프레임 다시 그리면 누르는 도중 버튼이 바뀌어 클릭이 사라지므로, 바뀔 때만 그림
+  if (tabHTML !== tabsHTML) { tabsHTML = tabHTML; $('tabs').innerHTML = tabHTML; }
+  if (force || key !== panelKey) { panelKey = key; buildPanel(); }
+  updatePanel();
+}
+
+function buildPanel() {
+  const p = $('panel');
+  if (S.tab === 'upg') {
+    let h = `<div class="row" style="justify-content:space-between"><div class="seg" id="buyMode">`
+      + [1, 10, 'max'].map(m => `<button data-m="${m}" class="${S.buyMode == m ? 'on' : ''}">${m === 'max' ? '최대' : '×' + m}</button>`).join('')
+      + `</div>${(S.res.auto | 0) ? `<label class="small"><input type="checkbox" id="autoChk" ${S.autoOn ? 'checked' : ''}> 자동 구매</label>` : ''}</div>`;
+    for (const id of UPG_ORDER) {
+      const u = UPG[id];
+      if (unlockedUpg(id)) {
+        h += `<div class="upg"><div class="sym">${u.sym}</div><div><div class="name">${u.name}<span class="lvl" id="lv-${id}"></span></div>`
+          + `<div class="eff" id="eff-${id}"></div></div><button class="buy mono" data-buy="${id}" id="b-${id}"><span></span><small></small></button></div>`;
+      } else if (u.unlockE) {
+        h += `<div class="locked">🔒 ${u.sym} ${u.name} — ${fmtN(u.unlockE, 'J')} 모으면 해금</div>`;
+      } else if (S.engEarned) {
+        h += `<div class="locked">🔒 ${u.sym} ${u.name} — 연구 「인덕터 해금」 필요</div>`;
+      }
+    }
+    if (!(S.maxEver >= PUB_UNLOCK || S.pubTotal)) h += `<div class="locked">🔒 📄 출판 — ${fmtN(PUB_UNLOCK, 'J')} 모으면 해금</div>`;
+    p.innerHTML = h;
+  } else if (S.tab === 'pub') {
+    p.innerHTML = `<div class="pbox">논문을 출판하면 지금까지의 연구 성과로 <b>출판 배수 μ</b>를 얻습니다.<br>
+      대신 에너지·변수·충전량이 처음으로 돌아갑니다.<br><span class="small">μ = (이번 판 최대 에너지)<sup id="pubExp"></sup></span></div>
+      <div class="pbox mono" id="pubInfo"></div><button class="action" id="pubBtn"></button>`;
+  } else if (S.tab === 'eng') {
+    let h = `<div class="pbox">엔지니어를 채용하면 출판 배수까지 모두 초기화되지만, 엔지니어로 <b>영구 연구</b>를 할 수 있습니다.<br>
+      <span class="small">엔지니어 수 = ⌊2·(log₁₀ 최대 에너지 − 23)⌋ (1e25 J부터)</span></div>
+      <div class="pbox mono" id="engInfo"></div><button class="action violet" id="gradBtn"></button>
+      <div class="row" style="justify-content:space-between;margin-top:12px"><b>연구 <span class="mono" id="engFree"></span></b>
+      <button class="action ghost" style="width:auto;padding:6px 10px" id="respecBtn">연구 초기화</button></div>`;
+    for (const r of RESEARCH) {
+      h += `<div class="res"><div><div class="name">${r.name} <span class="pips" id="pip-${r.id}"></span></div><div class="eff">${r.desc}</div></div>`
+        + `<button class="buy mono" data-res="${r.id}" id="r-${r.id}"><span></span><small></small></button></div>`;
+    }
+    p.innerHTML = h;
+  } else if (S.tab === 'ach') {
+    p.innerHTML = `<div class="small" style="margin-bottom:8px">업적마다 전력 +3% · <span id="achCount"></span></div><div class="ach">`
+      + ACH.map(([id, name, desc]) => `<div class="${S.ach[id] ? 'got' : ''}"><b>${S.ach[id] ? '🏅' : '🔒'} ${name}</b>${desc}</div>`).join('') + '</div>';
+  } else {
+    p.innerHTML = `<table class="stats" id="statsTbl"></table>
+      <div class="row" style="margin-top:12px"><span class="small">숫자 표기</span><div class="seg" id="notation">
+      <button data-n="si" class="${S.notation === 'si' ? 'on' : ''}">SI 접두어</button><button data-n="sci" class="${S.notation === 'sci' ? 'on' : ''}">과학적</button></div></div>
+      <p class="small" style="margin-top:12px">세이브 내보내기/가져오기</p><textarea id="saveTxt" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:6px"><button class="action ghost" style="width:auto;padding:6px 10px" id="exportBtn">내보내기</button>
+      <button class="action ghost" style="width:auto;padding:6px 10px" id="importBtn">가져오기</button>
+      <button class="action ghost" style="width:auto;padding:6px 10px;color:var(--bad)" id="wipeBtn">처음부터 다시</button></div>`;
+  }
+}
+
+function updatePanel() {
+  if (S.tab === 'upg') {
+    for (const id of UPG_ORDER) {
+      const b = $('b-' + id);
+      if (!b) continue;
+      const u = UPG[id], full = u.max != null && S.lv[id] >= u.max;
+      const k = buyCount(id), c = costOf(id, k);
+      $('lv-' + id).textContent = `Lv ${S.lv[id]}${u.max != null ? '/' + u.max : ''}`;
+      $('eff-' + id).textContent = u.eff(S.lv[id]);
+      b.disabled = full || c > S.E;
+      b.firstChild.textContent = full ? '최대' : fmtN(c, 'J');
+      b.lastChild.textContent = full ? '' : k > 1 ? '+' + k + ' 레벨' : '구매';
+    }
+  } else if (S.tab === 'pub') {
+    const m = pubCandidate();
+    $('pubExp').textContent = pubExp().toFixed(2);
+    $('pubInfo').innerHTML = `지금 배수 μ = <b>×${fmtN(S.mu)}</b><br>출판하면 μ = <b>×${fmtN(m)}</b>`
+      + (m > S.mu ? ` <span style="color:var(--accent)">(×${fmtN(m / S.mu)} 상승)</span>` : '')
+      + `<br>이번 판 최대: ${fmtN(S.runMax, 'J')} · 이번 판 시간 ${fmtTime(S.runTime)}`;
+    const b = $('pubBtn');
+    b.disabled = m <= S.mu * 1.0001;
+    b.textContent = b.disabled ? '지금 배수보다 높아야 출판할 수 있어요' : `📄 출판하기 (×${fmtN(m / S.mu)})`;
+  } else if (S.tab === 'eng') {
+    const g = engGain();
+    const next = S.maxEver < GRAD_UNLOCK ? GRAD_UNLOCK : 10 ** ((engTotal(S.maxEver) + 1) / 2 + 23);
+    $('engInfo').innerHTML = `채용한 엔지니어: <b>${S.engEarned}</b>명<br>지금 채용 가능: <b style="color:var(--violet)">+${g}</b>명<br>다음 1명: 최대 에너지 ${fmtN(next, 'J')}`;
+    const b = $('gradBtn');
+    b.disabled = g < 1;
+    b.textContent = g < 1 ? '더 많은 에너지가 필요해요' : `👷 엔지니어 ${g}명 채용하기 (출판 배수 초기화)`;
+    $('engFree').textContent = `· 남은 엔지니어 ${S.engFree}명`;
+    for (const r of RESEARCH) {
+      const lvl = S.res[r.id] | 0, max = r.cost.length, b2 = $('r-' + r.id);
+      $('pip-' + r.id).textContent = '●'.repeat(lvl) + '○'.repeat(max - lvl);
+      const locked = r.req && !(S.res[r.req] | 0);
+      b2.disabled = lvl >= max || locked || S.engFree < r.cost[lvl];
+      b2.firstChild.textContent = lvl >= max ? '완료' : locked ? '선행 연구 필요' : `👷 ${r.cost[lvl]}명`;
+      b2.lastChild.textContent = lvl >= max || locked ? '' : '연구';
+    }
+  } else if (S.tab === 'ach') {
+    $('achCount').textContent = `${Object.keys(S.ach).length} / ${ACH.length} · 전력 ×${achMult().toFixed(2)}`;
+  } else if (S.tab === 'set') {
+    const rows = [
+      ['총 플레이 시간 (게임 시간)', fmtTime(S.time)], ['이번 판 시간', fmtTime(S.runTime)],
+      ['역대 최대 에너지', fmtN(S.maxEver, 'J')], ['출판 횟수 (이번 사이클 / 전체)', `${S.pubs} / ${S.pubTotal}`],
+      ['엔지니어 채용 횟수', S.grads], ['스위치 누른 횟수', S.taps], ['게임 속도', '×' + speed().toFixed(2)],
+      ['오프라인 효율', `${50 + 25 * (S.res.ess | 0)}% · 최대 ${8 + 8 * (S.res.ess | 0)}시간`],
+    ];
+    $('statsTbl').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td class="mono">${r[1]}</td></tr>`).join('');
+  }
+}
+
+function updateHeader() {
+  const P = power() * speed() * boostMult();
+  $('energy').textContent = fmtN(S.E, 'J');
+  $('rate').innerHTML = `<b class="mono">${fmtN(P, 'W')}</b> (초당 ${fmtN(P, 'J')})`;
+  const ex = vExp(S.lv.L);
+  const exTxt = (S.res.ac3 | 0) ? `${(ex * 1.03).toFixed(3)}` : ex === 2 ? '2' : ex.toFixed(2);
+  const showC = unlockedUpg('c') || S.lv.c > 0;
+  $('formula').innerHTML = `Ė = <span class="sym">μ</span> · <span class="sym">V</span><sup>${exTxt}</sup> / <span class="sym">R</span>`
+    + (showC ? ` · (1+<span class="sym">q</span>)<sup>0.4</sup>` : '');
+  $('formulaVals').innerHTML = `μ = <b>${fmtN(S.mu)}</b> · V = <b>${fmtN(voltage(), 'V')}</b> · R = <b>${fmtN(resist(S.lv.r), 'Ω')}</b>`
+    + (showC ? ` · q = <b>${fmtN(S.q)}</b>` : '')
+    + `<br>업적 ×${achMult().toFixed(2)}` + ((S.res.sc | 0) ? ` · 초전도 ×${fmtN(resMult())}` : '')
+    + (speed() > 1 ? ` · 속도 ×${speed().toFixed(2)}` : '');
+  const bm = boostMult(), cap = boostCap();
+  $('boostBar').style.width = (S.boost / cap * 100) + '%';
+  $('boostTxt').textContent = '×' + bm.toFixed(2);
+}
+
+// =============== 회로 그림 ===============
+const cv = $('circuit'), cx = cv.getContext('2d');
+const electrons = Array.from({ length: 28 }, (_, i) => i / 28);
+let sparks = [];
+function drawCircuit(dt) {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) {
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  }
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = r.width, h = r.height, x0 = 50, y0 = 34, x1 = w - 50, y1 = h - 34;
+  cx.clearRect(0, 0, w, h);
+  const P = power() * boostMult();
+  const heat = Math.min(1, Math.log10(1 + P) / 60);
+
+  // 기판 격자
+  cx.strokeStyle = 'rgba(63,224,176,.05)'; cx.lineWidth = 1;
+  for (let x = 0; x < w; x += 20) { cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x, h); cx.stroke(); }
+  for (let y = 0; y < h; y += 20) { cx.beginPath(); cx.moveTo(0, y); cx.lineTo(w, y); cx.stroke(); }
+
+  // 도선
+  cx.strokeStyle = '#3a5566'; cx.lineWidth = 3; cx.lineJoin = 'round';
+  cx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+
+  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  const clear = (x, y, ww, hh) => { cx.fillStyle = '#111a22'; cx.fillRect(x, y, ww, hh); };
+  cx.font = '12px ui-monospace, monospace'; cx.textAlign = 'center';
+
+  // 전지 (왼쪽)
+  clear(x0 - 22, my - 22, 44, 44);
+  cx.strokeStyle = '#e3edf2'; cx.lineWidth = 3;
+  for (let i = 0; i < 2; i++) {
+    const yy = my - 10 + i * 14;
+    cx.beginPath(); cx.moveTo(x0 - 16, yy); cx.lineTo(x0 + 16, yy); cx.stroke();
+    cx.beginPath(); cx.moveTo(x0 - 8, yy + 6); cx.lineTo(x0 + 8, yy + 6); cx.stroke();
+  }
+  cx.fillStyle = '#ffbf3c'; cx.textAlign = 'left';
+  cx.fillText(fmtN(voltage(), 'V'), x0 + 22, my + 4);
+
+  // 저항 (위) — 전력이 클수록 달아오름
+  const rw = 90;
+  clear(mx - rw / 2 - 2, y0 - 14, rw + 4, 28);
+  const hot = `rgb(${Math.round(120 + 135 * heat)},${Math.round(80 + 140 * heat * heat)},${Math.round(70 + 160 * heat ** 3)})`;
+  cx.strokeStyle = hot; cx.lineWidth = 3;
+  cx.shadowColor = hot; cx.shadowBlur = 18 * heat;
+  cx.beginPath(); cx.moveTo(mx - rw / 2, y0);
+  for (let i = 0; i < 8; i++) cx.lineTo(mx - rw / 2 + (i + 0.5) * rw / 8, y0 + (i % 2 ? 10 : -10));
+  cx.lineTo(mx + rw / 2, y0); cx.stroke();
+  cx.shadowBlur = 0;
+  cx.fillStyle = '#7f95a3'; cx.textAlign = 'center';
+  cx.fillText('R = ' + fmtN(resist(S.lv.r), 'Ω'), mx, y0 - 16 < 10 ? y0 + 26 : y0 - 16);
+
+  // 커패시터 (오른쪽)
+  const capOn = unlockedUpg('c');
+  clear(x1 - 20, my - 14, 40, 28);
+  cx.strokeStyle = capOn ? '#5ccfff' : '#2a3a46'; cx.lineWidth = 4;
+  cx.beginPath(); cx.moveTo(x1 - 16, my - 5); cx.lineTo(x1 + 16, my - 5); cx.moveTo(x1 - 16, my + 5); cx.lineTo(x1 + 16, my + 5); cx.stroke();
+  if (capOn) {
+    const fill = Math.tanh(Math.log10(1 + S.q) / 4);
+    cx.fillStyle = `rgba(92,207,255,${0.15 + 0.6 * fill})`;
+    cx.fillRect(x1 - 16 * fill, my - 4, 32 * fill, 8);
+    cx.fillStyle = '#7f95a3'; cx.textAlign = 'right';
+    cx.fillText('q = ' + fmtN(S.q), x1 - 22, my + 4);
+  }
+
+  // 인덕터 (아래)
+  const indOn = unlockedUpg('L');
+  clear(mx - 50, y1 - 12, 100, 24);
+  cx.strokeStyle = indOn ? '#b59cff' : '#2a3a46'; cx.lineWidth = 3;
+  cx.beginPath(); cx.moveTo(mx - 48, y1);
+  for (let i = 0; i < 4; i++) cx.arc(mx - 36 + i * 24, y1, 12, Math.PI, 0, false);
+  cx.lineTo(mx + 48, y1); cx.stroke();
+  if (indOn) { cx.fillStyle = '#7f95a3'; cx.textAlign = 'center'; cx.fillText('L = ' + S.lv.L, mx, y1 + 26 > h ? y1 - 18 : y1 + 26); }
+
+  // 전자 흐름 (둘레를 따라)
+  const per = 2 * (x1 - x0 + y1 - y0);
+  const v = Math.min(0.6, 0.03 + 0.012 * Math.log10(1 + P)) * dt;
+  cx.fillStyle = '#3fe0b0';
+  for (let i = 0; i < electrons.length; i++) {
+    electrons[i] = (electrons[i] + v) % 1;
+    let d = electrons[i] * per, x, y;
+    if (d < x1 - x0) { x = x0 + d; y = y0; }
+    else if ((d -= x1 - x0) < y1 - y0) { x = x1; y = y0 + d; }
+    else if ((d -= y1 - y0) < x1 - x0) { x = x1 - d; y = y1; }
+    else { d -= x1 - x0; x = x0; y = y1 - d; }
+    cx.globalAlpha = 0.85; cx.beginPath(); cx.arc(x, y, 2.6, 0, Math.PI * 2); cx.fill();
+  }
+  cx.globalAlpha = 1;
+
+  // 탭 불꽃
+  sparks = sparks.filter(s => (s.life -= dt) > 0);
+  for (const s of sparks) {
+    s.x += s.vx * dt; s.y += s.vy * dt;
+    cx.strokeStyle = `rgba(255,191,60,${s.life / 0.6})`; cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(s.x, s.y); cx.lineTo(s.x - s.vx * 0.04, s.y - s.vy * 0.04); cx.stroke();
+  }
+}
+
+// =============== 입력 ===============
+function tap(e) {
+  S.taps++;
+  S.boost = Math.min(boostCap(), S.boost + 0.22);
+  const r = cv.getBoundingClientRect();
+  let x = r.width / 2, y = r.height / 2;
+  if (e && e.currentTarget === cv) { x = e.clientX - r.left; y = e.clientY - r.top; }
+  for (let i = 0; i < 8; i++) {
+    const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 160;
+    sparks.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.6 });
+  }
+}
+$('tapBtn').addEventListener('click', tap);
+cv.addEventListener('pointerdown', tap);
+
+$('tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]');
+  if (!b) return;
+  S.tab = b.dataset.tab; S.seen[S.tab] = 1;
+  render(true);
+});
+$('panel').addEventListener('click', e => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  if (t.dataset.buy) { const id = t.dataset.buy; if (buy(id, buyCount(id))) updatePanel(); }
+  else if (t.dataset.m) { S.buyMode = t.dataset.m === 'max' ? 'max' : +t.dataset.m; render(true); }
+  else if (t.dataset.res) doResearch(t.dataset.res);
+  else if (t.dataset.n) { S.notation = t.dataset.n; render(true); }
+  else if (t.id === 'pubBtn') publish();
+  else if (t.id === 'gradBtn') {
+    if (confirm('엔지니어를 채용하면 에너지·변수·출판 배수가 모두 초기화됩니다. 계속할까요?')) graduate();
+  }
+  else if (t.id === 'respecBtn') respec();
+  else if (t.id === 'exportBtn') { save(); $('saveTxt').value = btoa(unescape(encodeURIComponent(JSON.stringify(S)))); $('saveTxt').select(); }
+  else if (t.id === 'importBtn') {
+    try {
+      S = restore(JSON.parse(decodeURIComponent(escape(atob($('saveTxt').value.trim())))));
+      S.lastSave = Date.now(); save(); render(true); toast('세이브를 불러왔습니다.');
+    } catch (err) { toast('세이브 문자열이 올바르지 않아요.'); }
+  }
+  else if (t.id === 'wipeBtn') {
+    if (confirm('정말로 모든 진행을 지우고 처음부터 시작할까요?')) { S = newGame(); save(); render(true); }
+  }
+});
+$('panel').addEventListener('change', e => { if (e.target.id === 'autoChk') S.autoOn = e.target.checked; });
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+window.addEventListener('pagehide', save);
+
+// =============== 루프 ===============
+let last = performance.now(), uiAcc = 0, saveAcc = 0;
+function frame(now) {
+  const dt = Math.min(1, (now - last) / 1000);
+  last = now;
+  tick(dt);
+  uiAcc += dt; saveAcc += dt;
+  if (uiAcc > 0.1) { uiAcc = 0; checkAch(); updateHeader(); render(false); }
+  if (saveAcc > 10) { saveAcc = 0; save(); }
+  drawCircuit(dt);
+  requestAnimationFrame(frame);
+}
+
+load();
+offlineProgress();
+updateHeader();
+render(true);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
