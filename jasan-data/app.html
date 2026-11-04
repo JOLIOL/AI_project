@@ -412,7 +412,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
         <div class="profile-strip"></div>
         <div class="card">
           <div class="card-head"><h3>월간 결산</h3><span class="xs muted">실제 수입·지출 → 저축률 추이</span></div>
-          <form class="fields" id="flowForm">
+          <form class="fields" id="flowForm" novalidate>
             <label class="field">월<input id="fl-month" type="month"></label>
             <label class="field">실제 수입(원)<input id="fl-income" type="number" min="0" step="10000" inputmode="numeric"></label>
             <label class="field">실제 지출(원)<input id="fl-expense" type="number" min="0" step="10000" inputmode="numeric"></label>
@@ -420,7 +420,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
             <details style="grid-column:1/-1"><summary class="small" style="cursor:pointer;color:var(--accent);font-weight:600">카테고리별로 입력하기 (선택 · 합계가 실제 지출에 자동 반영)</summary><div class="fields" id="flowCats" style="margin-top:10px"></div></details>
             <label class="field" style="justify-content:flex-end"><button class="btn" type="submit">결산 저장</button></label>
           </form>
-          <div id="flowKpis"></div><div class="chart" id="flowChart"></div><div class="stack" id="flowCatOut"></div><div id="flowList"></div>
+          <div id="flowKpis"></div><div class="chart" id="flowChart"></div><div class="stack" id="budgetOut"></div><details><summary class="small" style="cursor:pointer;color:var(--accent);font-weight:600">카테고리별 월 예산 정하기</summary><div class="fields" id="budgetFields" style="margin-top:10px"></div></details><div class="stack" id="flowCatOut"></div><div id="flowList"></div>
         </div>
         <div class="card"><div class="card-head"><h3>고정지출 · 보험 · 구독</h3><button class="btn sm" id="fixAdd">＋ 추가</button></div><div class="stack" id="fixOut"></div></div>
         <div class="grid g-hero">
@@ -436,7 +436,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
         <div class="card"><div class="card-head"><h3>내 목표</h3></div><div id="gGoals"></div></div>
         <div class="card">
           <div class="card-head"><h3>몬테카를로 시뮬레이션</h3><span class="xs muted" id="mcInfo"></span></div>
-          <form class="fields" id="mcForm">
+          <form class="fields" id="mcForm" novalidate>
             <label class="field">시작 자산(원)<input id="mc-start" type="number" min="0" step="100000"></label>
             <label class="field">매달 추가 투자(원)<input id="mc-monthly" type="number" min="0" step="10000"></label>
             <label class="field">기간(년)<input id="mc-years" type="number" min="1" max="40" value="10"></label>
@@ -451,7 +451,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
           <div class="note">2,000개 경로를 무작위로 만들어 분포를 봅니다. 기대수익률·변동성은 자산군별 장기 가정치를 보유 비중으로 가중한 값이며, 미래 수익을 보장하지 않아요.</div>
         </div>
         <div class="card"><div class="card-head"><h3>노후 준비 계산기</h3><span class="xs muted">국민연금 + 퇴직연금 + 개인연금</span></div>
-          <form class="fields" id="retForm">
+          <form class="fields" id="retForm" novalidate>
             <label class="field">은퇴 나이<input id="r-age" type="number" min="40" max="80"></label>
             <label class="field">기대 수명<input id="r-life" type="number" min="60" max="110"></label>
             <label class="field">은퇴 후 월 생활비 (현재가치)<input id="r-spend" type="number" min="0" step="100000"></label>
@@ -462,7 +462,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
           </form>
           <label class="inline-check"><input type="checkbox" id="r-all" form="retForm">연금 계좌뿐 아니라 전체 투자자산을 노후자금으로 계산</label>
           <div class="stack" id="retOut"></div></div>        <div class="card"><div class="card-head"><h3>내 집 마련 플래너</h3><span class="xs muted">대출 한도 · DSR · 필요 자기자본</span></div>
-          <form class="fields" id="hbForm">
+          <form class="fields" id="hbForm" novalidate>
             <label class="field">목표 매매가(원)<input id="hb-price" type="number" min="0" step="10000000"></label>
             <label class="field">지역<select id="hb-region"><option value="metro">수도권·규제지역</option><option value="local">비규제 지방</option></select></label>
             <label class="field">생애최초 구입<select id="hb-first"><option value="yes">예</option><option value="no">아니오</option></select></label>
@@ -502,7 +502,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 </div>
 
 <dialog id="profDlg" class="wide"><div class="sheet"><h2>내 정보</h2><div class="note">연봉과 가족 정보로 실수령액, 4대보험, 연말정산 세금, 월급 배분을 계산해요. 입력값은 이 PC에만 저장돼요.</div>
-          <form class="fields" id="salForm">
+          <form class="fields" id="salForm" novalidate>
             <label class="field">연봉 (총급여, 원)<input id="s-salary" type="number" min="0" step="1000000" inputmode="numeric" placeholder="예: 52000000"></label>
             <label class="field">월 실수령액 계산<select id="s-incmode"><option value="auto">연봉으로 자동 계산</option><option value="manual">직접 입력</option></select></label>
             <label class="field">월 실수령액(원) <span class="xs muted" id="s-income-hint"></span><input id="s-income" type="number" min="0" step="10000" inputmode="numeric"></label>
@@ -589,7 +589,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 
 <!-- price dialog -->
 <dialog id="priceDlg" class="wide">
-  <form class="sheet" id="priceForm" method="dialog">
+  <form class="sheet" id="priceForm" method="dialog" novalidate>
     <h2>시세·잔액 일괄 업데이트</h2>
     <details><summary class="small" style="cursor:pointer;color:var(--accent);font-weight:600">증권사 화면에서 복사해 붙여넣기</summary><textarea id="pastePx" rows="4" style="width:100%;margin-top:8px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);padding:10px;font:inherit;font-size:13px" placeholder="증권사 앱·HTS의 보유종목 표를 드래그해 복사(Ctrl+C) 후 여기에 붙여넣으세요. 종목명·티커가 있는 줄에서 현재가를 찾아 채워요."></textarea><div class="xs muted" id="pasteMsg"></div></details>
     <div class="note">증권사·은행 앱을 보며 현재가와 잔액을 한 번에 옮겨 적으세요. 바뀐 값만 저장돼요.</div>
@@ -600,7 +600,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 
 <!-- goal dialog -->
 <dialog id="goalDlg">
-  <form class="sheet" id="goalForm" method="dialog">
+  <form class="sheet" id="goalForm" method="dialog" novalidate>
     <h2 id="goalTitle">목표 추가</h2>
     <div class="fields">
       <label class="field">목표 이름<input id="g-name" required placeholder="예: 전세 보증금"></label>
@@ -608,6 +608,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
       <label class="field">목표 날짜<input id="g-date" type="date" required></label>
       <label class="field">진행 상황 계산<select id="g-link"></select></label>
       <label class="field" id="g-manual-wrap">현재 모은 금액(원)<input id="g-current" type="number" min="0" step="10000" inputmode="numeric"></label>
+      <div id="g-sel-wrap" hidden style="grid-column:1/-1"><div class="sec-title">연결할 자산</div><div class="stack" id="g-sel" style="gap:6px;max-height:200px;overflow:auto"></div></div>
     </div>
     <div class="actions"><button type="button" class="btn danger" id="goalDel" hidden>삭제</button><span class="grow"></span><button type="button" class="btn ghost" data-close>취소</button><button type="submit" class="btn">저장</button></div>
   </form>
@@ -680,7 +681,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.16.0";
+const APP_VERSION="3.17.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1120,7 +1121,8 @@ const DEFAULT_DATA={
    "limitHigh": 2000000
   },
   "note": "2026년 귀속 기준 추정. 4대보험 요율은 2026년 고시 기준"
- }
+ },
+ "bench": []
 };
 
 /* ================= storage ================= */
@@ -1517,17 +1519,17 @@ function taxReport(t){const R=TAXR();const y=String(yr());const yt=txs.filter(x=
   return {realized,overseasGain,overseasTax:ovTax,domesticTxTax,div,intr,taxPaid,fees,isaGain,isaCount:isa.length,isaLimit,isaTax:Math.max(0,isaGain-isaLimit)*R.isa.over,w,f,expInt:f.expInt,expDiv:f.expDiv,finIncome:f.fin,
     pPaid:pensionPaidThisYear(),pProj:w.pensTot,crate:w.pRate,refund:w.pensCredit*(1+R.local)};}
 /* ================= goals ================= */
-function goalProgress(g,t){const cur=g.link==="manual"?num(g.current):g.link==="all"?t.value:g.link==="net"?t.net:g.link&&g.link.startsWith("grp:")?(t.byGrp[g.link.slice(4)]||0):(t.byType[g.link]||0);const months=Math.max(0,(new Date(g.date)-new Date())/2629800000);
+function goalProgress(g,t){const cur=g.link==="sel"?(g.hids||[]).reduce((s,id)=>{const h=items.find(x=>x.id===id);return s+(h?valKRW(h):0);},0):g.link==="manual"?num(g.current):g.link==="all"?t.value:g.link==="net"?t.net:g.link&&g.link.startsWith("grp:")?(t.byGrp[g.link.slice(4)]||0):(t.byType[g.link]||0);const months=Math.max(0,(new Date(g.date)-new Date())/2629800000);
   const r=(num(DATA.baseRate)||3)/100/12;const fv=cur*Math.pow(1+r,months);const f=r?(Math.pow(1+r,months)-1)/r:months;const need=months<1?Math.max(0,g.target-cur):Math.max(0,(g.target-fv)/f);
   return {cur,pct:g.target?Math.min(100,cur/g.target*100):0,months,need,done:cur>=g.target};}
 let editingGoal=null;
-$("#g-link").innerHTML=`<option value="all">전체 자산 합계</option><option value="net">순자산 (자산 − 부채)</option>`+Object.entries(GROUPS).filter(([g])=>g!=="debt").map(([g,l])=>`<option value="grp:${g}">${l} 합계</option>`).join("")+`<optgroup label="유형별">`+Object.entries(TYPES).filter(([,v])=>v.mode!=="debt").map(([k,v])=>`<option value="${k}">${v.label}</option>`).join("")+`</optgroup><option value="manual">직접 입력</option>`;
-const syncGoalLink=()=>{$("#g-manual-wrap").hidden=$("#g-link").value!=="manual"};$("#g-link").onchange=syncGoalLink;
+$("#g-link").innerHTML=`<option value="all">전체 자산 합계</option><option value="net">순자산 (자산 − 부채)</option>`+Object.entries(GROUPS).filter(([g])=>g!=="debt").map(([g,l])=>`<option value="grp:${g}">${l} 합계</option>`).join("")+`<option value="sel">선택한 자산만 (적금·ETF 등 골라서)</option><optgroup label="유형별">`+Object.entries(TYPES).filter(([,v])=>v.mode!=="debt").map(([k,v])=>`<option value="${k}">${v.label}</option>`).join("")+`</optgroup><option value="manual">직접 입력</option>`;
+const syncGoalLink=()=>{$("#g-manual-wrap").hidden=$("#g-link").value!=="manual";$("#g-sel-wrap").hidden=$("#g-link").value!=="sel";};$("#g-link").onchange=syncGoalLink;
 function openGoal(id){editingGoal=id||null;const g=goals.find(x=>x.id===id);$("#goalTitle").textContent=g?"목표 수정":"목표 추가";$("#goalDel").hidden=!g;
   $("#g-name").value=g?.name||"";$("#g-target").value=g?.target||"";const d=new Date();d.setFullYear(d.getFullYear()+3);$("#g-date").value=g?.date||iso(d);
-  $("#g-link").value=g?.link||"net";$("#g-current").value=g?.current||"";syncGoalLink();$("#goalDlg").showModal();}
+  $("#g-link").value=g?.link||"net";$("#g-current").value=g?.current||"";const sel=new Set(g?.hids||[]);$("#g-sel").innerHTML=items.filter(h=>!isDebt(h)).map(h=>`<label class="inline-check"><input type="checkbox" value="${esc(h.id)}" ${sel.has(h.id)?"checked":""}>${esc(h.name)} <span class="xs muted">${short(valKRW(h))}원</span></label>`).join("")||'<div class="xs muted">자산이 없어요</div>';syncGoalLink();$("#goalDlg").showModal();}
 $("#addGoal").onclick=()=>openGoal();
-$("#goalForm").addEventListener("submit",e=>{e.preventDefault();const g={id:editingGoal||uid(),name:$("#g-name").value.trim()||"목표",target:num($("#g-target").value),date:$("#g-date").value,link:$("#g-link").value,current:num($("#g-current").value)};
+$("#goalForm").addEventListener("submit",e=>{e.preventDefault();const g={id:editingGoal||uid(),name:$("#g-name").value.trim()||"목표",target:num($("#g-target").value),date:$("#g-date").value,link:$("#g-link").value,current:num($("#g-current").value),hids:[...document.querySelectorAll("#g-sel input:checked")].map(i=>i.value)};
   if(editingGoal)goals=goals.map(x=>x.id===editingGoal?g:x);else goals.push(g);LS.set(K.goals,goals);$("#goalDlg").close();mcTouched=false;renderAll();toast("목표를 저장했어요");});
 $("#goalDel").onclick=async()=>{$("#goalDlg").close();if(await confirmBox("목표 삭제","이 목표를 삭제할까요?","삭제")){goals=goals.filter(x=>x.id!==editingGoal);LS.set(K.goals,goals);renderAll();}};
 
@@ -1832,7 +1834,15 @@ function barChart(rows){if(!rows.length)return "";const W=1000,H=220,L=40,R=10,T
   let g="";[mn,0,mx/2,mx].filter((v,i,a)=>a.indexOf(v)===i).forEach(v=>g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${Math.round(v)}%</text>`);
   rows.forEach((r,i)=>{const w=Math.min(bw*.64,56),x=L+i*bw+(bw-w)/2;const y0=y(0),y1=y(r.v);g+=`<rect x="${x}" y="${Math.min(y0,y1)}" width="${w}" height="${Math.max(1,Math.abs(y1-y0))}" rx="4" fill="var(${r.v>=0?"--c1":"--c5"})"/><text x="${x+w/2}" y="${H-8}" text-anchor="middle">${esc(r.l)}</text>`;});
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="월별 저축률">${g}</svg>`;}
-function renderCatBreak(last){const withCat=last.filter(f=>f.cat);if(!withCat.length){$("#flowCatOut").innerHTML="";return;}const avg={};CATS.forEach(([k])=>avg[k]=withCat.reduce((s,f)=>s+num(f.cat[k]),0)/withCat.length);const tot=Object.values(avg).reduce((a,b)=>a+b,0)||1;
+let budgets=LS.get("jasan-budget",{});
+function renderBudget(last){const lastCat=[...last].reverse().find(f=>f.cat);const has=Object.values(budgets).some(v=>num(v)>0);
+  $("#budgetFields").innerHTML=CATS.map(([k,l])=>`<label class="field">${l}<input type="number" min="0" step="10000" data-bud="${k}" value="${num(budgets[k])||""}" inputmode="numeric"></label>`).join("");
+  $$("[data-bud]").forEach(i=>i.oninput=()=>{budgets[i.dataset.bud]=num(i.value);LS.set("jasan-budget",budgets);clearTimeout(renderBudget.t);renderBudget.t=setTimeout(()=>renderBudgetOut(flows.slice(-12)),150);});
+  renderBudgetOut(last);}
+function renderBudgetOut(last){const lastCat=[...last].reverse().find(f=>f.cat);const has=Object.values(budgets).some(v=>num(v)>0);if(!has||!lastCat){$("#budgetOut").innerHTML=has?'<div class="xs muted">카테고리별로 결산하면 예산 대비 지출이 나와요.</div>':"";return;}
+  const rows=CATS.filter(([k])=>num(budgets[k])>0||num(lastCat.cat[k])>0).map(([k,l])=>({l,b:num(budgets[k]),a:num(lastCat.cat[k])}));const tb=rows.reduce((s,r)=>s+r.b,0),ta=rows.reduce((s,r)=>s+r.a,0);
+  $("#budgetOut").innerHTML=`<div class="sec-title">${lastCat.m} 예산 대비 지출 · 총 ${short(ta)} / ${short(tb)}원 <span class="${ta>tb?"neg":"pos"}">${ta>tb?"초과 "+short(ta-tb):"여유 "+short(tb-ta)}</span></div><div class="stack" style="gap:8px">${rows.map(r=>{const pct=r.b?Math.min(1.5,r.a/r.b):1;return `<div><div class="row between small"><span>${r.l}</span><span class="num ${r.b&&r.a>r.b?"neg":""}">${short(r.a)} / ${r.b?short(r.b):"예산 없음"}</span></div><div class="progress" style="height:7px"><span style="width:${Math.min(100,pct*100)}%;background:var(${!r.b?"--c7":r.a>r.b?"--bad":r.a>r.b*.9?"--warn":"--good"})"></span></div></div>`;}).join("")}</div>`;}
+function renderCatBreak(last){renderBudget(last);const withCat=last.filter(f=>f.cat);if(!withCat.length){$("#flowCatOut").innerHTML="";return;}const avg={};CATS.forEach(([k])=>avg[k]=withCat.reduce((s,f)=>s+num(f.cat[k]),0)/withCat.length);const tot=Object.values(avg).reduce((a,b)=>a+b,0)||1;
   const cols=["--c1","--c2","--c3","--c4","--c5","--c6","--c7","--c8"];const sorted=CATS.map(([k,l],i)=>({k,l,v:avg[k],c:cols[i]})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);const inc=incomeOf();
   $("#flowCatOut").innerHTML=`<div class="sec-title">지출 구성 (카테고리 입력한 ${withCat.length}개월 평균)</div><div class="bar" style="height:14px">${sorted.map(x=>`<span style="width:${x.v/tot*100}%;background:var(${x.c})" title="${x.l}"></span>`).join("")}</div>
    <div class="split">${sorted.map(x=>`<div class="tile"><div class="k"><span class="badge-dot" style="background:var(${x.c})"></span>${x.l}</div><div class="v num">${short(x.v)}원</div><div class="n">지출의 ${pctp(x.v/tot,0)}${inc?` · 수입의 ${pctp(x.v/inc,0)}`:""}</div></div>`).join("")}</div>
