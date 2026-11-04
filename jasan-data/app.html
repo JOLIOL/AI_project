@@ -623,6 +623,8 @@ body.locked .app,body.locked dialog{visibility:hidden}
       <div class="row between wrap"><span>원/달러 환율</span><div class="row"><span class="wt"><input id="fxInput" type="number" min="100" step="1" style="width:110px" aria-label="환율"></span><button class="btn sm ghost" id="fxNow">지금 갱신</button><button class="btn sm ghost" id="fxAuto">자동값 사용</button></div></div>
       <div class="xs muted" id="fxNote"></div>
       <div class="sec-title">데이터</div>
+      <div class="row between wrap"><span>자동 백업 폴더</span><div class="row"><button class="btn sm ghost" id="bkNow" hidden>지금 백업</button><button class="btn sm ghost" id="bkLoad" hidden>폴더에서 불러오기</button><button class="btn sm ghost" id="bkBtn">폴더 선택</button></div></div>
+      <div class="xs muted" id="bkNote"></div>
       <div class="row between wrap"><span>전체 백업 (JSON)</span><div class="row"><button class="btn sm ghost" id="expBtn">내보내기</button><label class="btn sm ghost" for="impFile">불러오기</label><input type="file" id="impFile" accept=".json" hidden></div></div>
       <div class="row between wrap"><span>엑셀용 CSV</span><div class="row"><button class="btn sm ghost" id="csvHold">보유 자산</button><button class="btn sm ghost" id="csvTx">거래 원장</button><label class="btn sm ghost" for="csvImp">자산 CSV 불러오기</label><input type="file" id="csvImp" accept=".csv,text/csv" hidden></div></div>
       <div class="row between wrap"><span>은행·증권사 거래내역 CSV</span><label class="btn sm ghost" for="txCsvImp">거래내역 가져오기</label><input type="file" id="txCsvImp" accept=".csv,text/csv" hidden></div>
@@ -675,7 +677,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.13.0";
+const APP_VERSION="3.14.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1302,7 +1304,7 @@ $$("[data-close]").forEach(b=>b.addEventListener("click",()=>b.closest("dialog")
 $$("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
 function confirmBox(title,body,okText){return new Promise(res=>{$("#cfTitle").textContent=title;$("#cfBody").textContent=body;$("#cfOk").textContent=okText||"확인";
   const dlg=$("#confirmDlg");let done=false;const ok=()=>{done=true;dlg.close();res(true)};$("#cfOk").onclick=ok;dlg.addEventListener("close",()=>{if(!done)res(false)},{once:true});dlg.showModal();});}
-$$("[data-open-settings]").forEach(b=>b.onclick=()=>{$("#fxInput").value=Math.round(fxRate("USD"));renderSnaps();renderNotifySetting();renderPinSetting();$("#setDlg").showModal();});
+$$("[data-open-settings]").forEach(b=>b.onclick=()=>{$("#fxInput").value=Math.round(fxRate("USD"));renderSnaps();renderNotifySetting();renderPinSetting();renderBkSetting();$("#setDlg").showModal();});
 $$("[data-open-help]").forEach(b=>b.onclick=()=>$("#helpDlg").showModal());
 
 /* ================= holding CRUD ================= */
@@ -1542,7 +1544,7 @@ function alerts(t){const out=[];items.filter(x=>x.maturity).forEach(x=>{const d=
   if(items.length&&new Date().getDate()>=Math.min(28,num(PROFILE.payday)||25)-20&&!flows.some(f=>f.m===prevMonth()))out.push(["info",`${prevMonth().slice(5)}월 결산을 아직 안 했어요. 월급 화면에서 실제 수입·지출을 기록하면 저축률이 쌓여요.`]);
   if(new Date().getMonth()>=10){const ye=yearEnd(t);const g=ye.acts.reduce((s,a)=>s+a.gain,0);if(g>0)out.push(["warn",`연말정산 D-${ye.dleft} · 지금 실행하면 약 ${short(g)}원을 아낄 수 있어요. 세금 화면에서 확인하세요.`]);}
   fixeds.filter(f=>f.renew).forEach(f=>{const d=Math.ceil(days(today(),f.renew));if(d>=0&&d<=14)out.push(["warn",`'${esc(f.name)}' 갱신·해지 기한 D-${d}`]);});
-  const lb=LS.get(K.lastBackup,0);if(items.length>=3&&(!lb||Date.now()-lb>30*864e5))out.push(["warn",`${lb?"마지막 백업 후 30일이 지났어요":"아직 백업한 적이 없어요"}. 설정에서 백업 파일을 내보내 두세요. 데이터는 이 PC에만 저장돼요.`]);
+  const lb=LS.get(K.lastBackup,0);if(bkState==="needperm")out.push(["warn","자동 백업 폴더 접근 허용이 필요해요. 설정 > 지금 백업을 눌러 주세요."]);else if(items.length>=3&&(!lb||Date.now()-lb>30*864e5))out.push(["warn",`${lb?"마지막 백업 후 30일이 지났어요":"아직 백업한 적이 없어요"}. 설정에서 백업 파일을 내보내 두세요. 데이터는 이 PC에만 저장돼요.`]);
   (DATA.notices||[]).forEach(n=>out.push(["info",esc(n)]));advice(t).filter(a=>a[0]==="bad").forEach(a=>out.push(a));return out;}
 const dotColor={good:"var(--good)",warn:"var(--warn)",bad:"var(--bad)",info:"var(--info)"};
 const alertHtml=a=>`<div class="alert"><span class="dot" style="background:${dotColor[a[0]]}"></span><span>${a[1]}</span></div>`;
@@ -1999,10 +2001,12 @@ $("#fxInput").addEventListener("change",()=>{const v=num($("#fxInput").value);LS
 $("#fxAuto").onclick=()=>{LS.set(K.fx,0);$("#fxInput").value=Math.round(fxRate("USD"));renderAll();toast("자동 환율을 써요");};
 function download(name,text,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
 $$("[data-print]").forEach(b=>b.onclick=()=>{$("#setDlg").open&&$("#setDlg").close();document.body.classList.add("printing");setTimeout(()=>{window.print();document.body.classList.remove("printing");},100);});
-$("#expBtn").onclick=()=>{download("jasan-backup-"+today()+".json",JSON.stringify({app:"jasan",v:3,holdings:items,transactions:txs,goals,profile:PROFILE,history:hist,targets:LS.get(K.targets,null),flows,fixeds,homebuy:HB,retire:RET},null,2),"application/json");LS.set(K.lastBackup,Date.now());toast("백업 파일을 저장했어요");};
-$("#impFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const v=JSON.parse(r.result);
+const backupJSON=()=>JSON.stringify({app:"jasan",v:3,savedAt:new Date().toISOString(),holdings:items,transactions:txs,goals,profile:PROFILE,history:hist,targets:LS.get(K.targets,null),flows,fixeds,homebuy:HB,retire:RET},null,2);
+$("#expBtn").onclick=()=>{download("jasan-backup-"+today()+".json",backupJSON(),"application/json");LS.set(K.lastBackup,Date.now());toast("백업 파일을 저장했어요");};
+$("#impFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const v=JSON.parse(r.result);applyBackup(v);$("#setDlg").close();toast("백업을 불러왔어요","되돌리기",undo);}catch(err){toast("백업 파일 형식이 올바르지 않아요")}};r.readAsText(f);e.target.value="";};
+function applyBackup(v){snapUndo();{
   if(Array.isArray(v))items=v;else{if(!Array.isArray(v.holdings))throw 0;items=v.holdings;txs=Array.isArray(v.transactions)?v.transactions:[];goals=Array.isArray(v.goals)?v.goals:goals;if(v.profile)PROFILE={...DEFAULT_PROFILE,...v.profile};if(Array.isArray(v.history))hist=v.history;if(v.targets)LS.set(K.targets,v.targets);if(Array.isArray(v.flows)){flows=v.flows;LS.set(K.flow,flows);}if(Array.isArray(v.fixeds)){fixeds=v.fixeds;LS.set("jasan-fixed",fixeds);}if(v.homebuy){HB={...HB_DEF,...v.homebuy};LS.set(HB_KEY,HB);}if(v.retire){RET={...retDefaults(),...v.retire};LS.set(RET_KEY,RET);}}
-  items=items.map(h=>({currency:"KRW",account:"",start:today(),...h}));ensureOpenTx();LS.set(K.goals,goals);LS.set(K.profile,PROFILE);LS.set(K.hist,hist);persist();fillSal();renderAll();$("#setDlg").close();toast("백업을 불러왔어요");}catch(err){toast("백업 파일 형식이 올바르지 않아요")}};r.readAsText(f);e.target.value="";};
+  items=items.map(h=>{const x={currency:"KRW",account:"",start:today(),...h};if(LEGACY[x.type])x.type=x.type==="stock"&&x.currency==="USD"?"ostock":LEGACY[x.type];if(!TYPES[x.type])x.type="other";return x;});ensureOpenTx();LS.set(K.goals,goals);LS.set(K.profile,PROFILE);LS.set(K.hist,hist);persist();fillSal();renderAll();}}
 const csvCell=v=>{const s=String(v??"");return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
 const HCOLS=[["유형",h=>TYPES[h.type]?.label||h.type],["상품명",h=>h.name],["계좌",h=>h.account],["통화",h=>h.currency],["티커",h=>h.ticker],["수량",h=>num(h.qty)||""],["평균단가",h=>num(h.avg)||""],["현재가",h=>num(h.price)||""],["평가액",h=>isSec(h)?"":num(h.value)],["원금",h=>isSec(h)?"":num(h.principal)],["월납입",h=>num(h.monthly)||""],["기대수익률",h=>num(h.rate)],["배당률",h=>num(h.divYield)||""],["만기일",h=>h.maturity||""],["시작일",h=>h.start||""],["평가액(원)",h=>Math.round(valKRW(h))],["손익(원)",h=>Math.round(valKRW(h)-costKRW(h))]];
 $("#csvHold").onclick=()=>{download("jasan-holdings-"+today()+".csv","﻿"+[HCOLS.map(c=>c[0]).join(","),...items.map(h=>HCOLS.map(c=>csvCell(c[1](h))).join(","))].join("\r\n"),"text/csv");toast("CSV를 저장했어요");};
@@ -2100,6 +2104,26 @@ $("#pinBtn").onclick=async()=>{const cur=LS.get("jasan-pin","");const v=$("#pinN
 function renderPinSetting(){const on=!!LS.get("jasan-pin","");$("#pinBtn").textContent=on?"PIN 변경 (비우면 끄기)":"켜기";$("#pinNote").textContent=on?"켜짐 · 데이터를 암호화하지는 않고, 다른 사람이 화면을 보지 못하게 막아요.":"같은 PC를 쓰는 사람이 화면을 보지 못하게 PIN으로 잠가요 (데이터 암호화는 아님).";}
 let idleT=0;const bumpIdle=()=>{clearTimeout(idleT);if(LS.get("jasan-pin",""))idleT=setTimeout(lockNow,10*60e3);};["pointerdown","keydown"].forEach(ev=>document.addEventListener(ev,bumpIdle,{passive:true}));
 if(LS.get("jasan-pin",""))lockNow();bumpIdle();
+
+/* ================= auto backup folder (File System Access) ================= */
+const fsOK=typeof window.showDirectoryPicker==="function";
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("jasan-fs",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function idbGet(k){try{const d=await idb();return await new Promise(res=>{const q=d.transaction("kv").objectStore("kv").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>res(null);});}catch(e){return null;}}
+async function idbSet(k,v){try{const d=await idb();await new Promise(res=>{const tx=d.transaction("kv","readwrite");tx.objectStore("kv").put(v,k);tx.oncomplete=res;tx.onerror=res;});}catch(e){}}
+let bkDir=null,bkState="none";
+async function bkPerm(ask){if(!bkDir)return false;try{const o={mode:"readwrite"};if(await bkDir.queryPermission(o)==="granted")return true;if(ask)return await bkDir.requestPermission(o)==="granted";}catch(e){}return false;}
+async function writeBackup(manual){if(!bkDir||!(await bkPerm(manual))){bkState=bkDir?"needperm":"none";renderBkSetting();return false;}
+  try{const put=async(name,txt)=>{const fh=await bkDir.getFileHandle(name,{create:true});const w=await fh.createWritable();await w.write(txt);await w.close();};const js=backupJSON();await put("jasan-backup-latest.json",js);
+    const wk=(()=>{const d=new Date();const j=new Date(d.getFullYear(),0,1);return d.getFullYear()+"-W"+String(Math.ceil(((d-j)/864e5+j.getDay()+1)/7)).padStart(2,"0");})();await put(`jasan-backup-${wk}.json`,js);
+    LS.set("jasan-bk-last",Date.now());LS.set(K.lastBackup,Date.now());bkState="ok";renderBkSetting();if(manual)toast("백업 폴더에 저장했어요");return true;}catch(e){bkState="error";renderBkSetting();if(manual)toast("백업 폴더에 쓰지 못했어요");return false;}}
+function renderBkSetting(){if(!$("#bkBtn"))return;if(!fsOK){$("#bkBtn").disabled=true;$("#bkNote").textContent="이 브라우저는 폴더 자동 백업을 지원하지 않아요. Edge·Chrome 최신 버전에서 쓸 수 있어요.";return;}
+  const last=LS.get("jasan-bk-last",0);$("#bkBtn").textContent=bkDir?"폴더 바꾸기":"폴더 선택";$("#bkNow").hidden=!bkDir;$("#bkLoad").hidden=!bkDir;
+  $("#bkNote").textContent=!bkDir?"OneDrive·구글 드라이브 같은 동기화 폴더를 고르면 앱을 열 때마다 자동 백업돼요. 다른 PC에서 같은 폴더를 고르면 불러올 수 있어요.":bkState==="needperm"?`'${bkDir.name}' 폴더 접근 허용이 필요해요. [지금 백업]을 누르면 허용 창이 떠요.`:`'${bkDir.name}' 폴더에 자동 백업 중${last?` · 마지막 ${new Date(last).toLocaleString("ko-KR")}`:""}`;}
+$("#bkBtn").onclick=async()=>{try{const d=await window.showDirectoryPicker({id:"jasan-backup",mode:"readwrite"});bkDir=d;await idbSet("dir",d);await writeBackup(true);}catch(e){if(e&&e.name!=="AbortError")toast("폴더를 열지 못했어요");}};
+$("#bkNow").onclick=()=>writeBackup(true);
+$("#bkLoad").onclick=async()=>{if(!(await bkPerm(true))){toast("폴더 접근을 허용해 주세요");return;}try{const fh=await bkDir.getFileHandle("jasan-backup-latest.json");const txt=await (await fh.getFile()).text();const v=JSON.parse(txt);$("#setDlg").close();
+  if(await confirmBox("백업 폴더에서 불러오기",`${v.savedAt?new Date(v.savedAt).toLocaleString("ko-KR")+"에 저장된 ":""}백업(자산 ${(v.holdings||[]).length}개 · 거래 ${(v.transactions||[]).length}건)으로 바꿀까요?`,"불러오기")){applyBackup(v);toast("백업 폴더에서 불러왔어요","되돌리기",undo);}}catch(e){toast("백업 파일이 없거나 읽지 못했어요");}};
+(async()=>{if(!fsOK)return;bkDir=await idbGet("dir");if(bkDir){const last=LS.get("jasan-bk-last",0);if(Date.now()-last>6*3600e3)setTimeout(()=>writeBackup(false),2500);else{bkState=(await bkPerm(false))?"ok":"needperm";}}})();
 
 /* ================= in-app guide ================= */
 const GUIDE_SECTIONS=[
