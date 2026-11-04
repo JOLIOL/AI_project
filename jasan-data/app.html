@@ -266,6 +266,25 @@ details.gd ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:co
 .card{scroll-margin-top:60px}
 @media (max-width:760px){.jump{top:calc(58px + env(safe-area-inset-top,0px));flex-wrap:nowrap;overflow-x:auto}.card-head{flex-wrap:wrap}}
 @media print{.jump,.fold{display:none!important}.card.collapsed>*{display:revert!important}}
+
+#lockScreen{display:none;position:fixed;inset:0;z-index:100;background:var(--bg);place-items:center;padding:16px}
+body.locked #lockScreen{display:grid}
+body.locked .app,body.locked dialog{visibility:hidden}
+.lock-card{background:var(--surface);border-radius:24px;padding:32px 28px;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:12px;width:min(340px,100%)}
+.lock-card input{width:100%;text-align:center;font-size:24px;letter-spacing:.4em;padding:12px;border-radius:14px;border:1px solid var(--line);background:var(--surface-2)}
+.rp-dlg{width:min(900px,calc(100% - 24px))}
+.rp-dlg .sheet{max-height:90vh;overflow:auto}
+.rp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;border-bottom:2px solid var(--line);padding-bottom:14px}
+.rp-big{text-align:right}
+.rp-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.rp-dlg section{display:flex;flex-direction:column;gap:8px}
+@media (max-width:760px){.rp-grid{grid-template-columns:1fr}.rp-big{text-align:left}}
+@media print{body.print-report .app,body.print-report .toast{display:none!important}
+ body.print-report #rpDlg{position:static;display:block;width:100%;box-shadow:none;border:0;max-height:none}
+ body.print-report #rpDlg .sheet{max-height:none;overflow:visible;padding:0}
+ body.print-report #rpDlg .actions{display:none}
+ body.print-report dialog:not(#rpDlg){display:none!important}}
+@media print{body.print-report #rpDlg{border-radius:0;margin:0;max-width:none}body.print-report dialog::backdrop{background:none}body.print-report{background:#fff}}
 </style>
 </head>
 <body>
@@ -290,7 +309,7 @@ details.gd ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:co
     <main>
       <!-- HOME -->
       <section class="page" id="p-home">
-        <div class="page-head"><div><h1 id="hello">내 자산</h1><div class="sub" id="homeSub"></div></div><div class="row"><button class="btn ghost" data-add-tx>거래 기록</button><button class="btn" data-add>＋ 자산 추가</button></div></div>
+        <div class="page-head"><div><h1 id="hello">내 자산</h1><div class="sub" id="homeSub"></div></div><div class="row"><button class="btn ghost" data-open-report>월간 리포트</button><button class="btn ghost" data-add-tx>거래 기록</button><button class="btn" data-add>＋ 자산 추가</button></div></div>
         <div class="profile-strip"></div>
         <div id="onboard"></div>
         <div class="kpis" id="hKpis"></div>
@@ -597,6 +616,8 @@ details.gd ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:co
     <h2>설정</h2>
     <div class="stack">
       <div class="row between wrap"><span>화면 테마</span><div class="seg" id="themeSeg"><button data-theme-set="system">시스템</button><button data-theme-set="light">라이트</button><button data-theme-set="dark">다크</button></div></div>
+      <div class="row between wrap"><span>화면 잠금 PIN</span><div class="row"><span class="wt"><input id="pinNew" type="password" inputmode="numeric" maxlength="8" placeholder="숫자 4~8자리" style="width:130px" aria-label="새 PIN"></span><button class="btn sm ghost" id="pinBtn">켜기</button></div></div>
+      <div class="xs muted" id="pinNote"></div>
       <div class="row between wrap"><span>바탕화면 알림</span><button class="btn sm ghost" id="notifyBtn">켜기</button></div>
       <div class="xs muted" id="notifyNote"></div>
       <div class="row between wrap"><span>원/달러 환율</span><div class="row"><span class="wt"><input id="fxInput" type="number" min="100" step="1" style="width:110px" aria-label="환율"></span><button class="btn sm ghost" id="fxNow">지금 갱신</button><button class="btn sm ghost" id="fxAuto">자동값 사용</button></div></div>
@@ -627,6 +648,8 @@ details.gd ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:co
     <div class="row between"><span>이 도움말</span><span class="kbd">?</span></div>
   </div><div class="actions"><button class="btn ghost" data-close>닫기</button></div></div></dialog>
 
+<dialog id="rpDlg" class="wide rp-dlg"><div class="sheet"><div id="rpBody" class="stack" style="gap:18px"></div><div class="actions"><button class="btn ghost" data-close>닫기</button><button class="btn" id="rpPrint">PDF로 저장 · 인쇄</button></div></div></dialog>
+<div id="lockScreen"><form id="lockForm" class="lock-card" novalidate><span class="logo" style="width:48px;height:48px;border-radius:14px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-5 4 4 7-8"/><path d="M15 8h5v5"/></svg></span><h2>자산 키움 노트</h2><div class="small muted">PIN을 입력하세요</div><input id="lockPin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" aria-label="PIN"><div class="small neg" id="lockMsg"></div><button class="btn" type="submit" style="width:100%">열기</button></form></div>
 <dialog id="guideDlg" class="wide"><div class="sheet"><h2>사용 설명서</h2><div class="stack" id="guideBody"></div><div class="xs muted">단축키는 ?, 전체 검색은 Ctrl+K</div><div class="actions"><button class="btn" data-close>닫기</button></div></div></dialog>
 <dialog id="fixDlg"><form class="sheet" id="fixForm" method="dialog" novalidate><h2 id="fxTitle">고정지출 추가</h2><div class="fields">
   <label class="field">이름<input id="fx-name" placeholder="예: 실손보험, 넷플릭스"></label>
@@ -652,7 +675,7 @@ details.gd ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:co
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.12.0";
+const APP_VERSION="3.13.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1279,7 +1302,7 @@ $$("[data-close]").forEach(b=>b.addEventListener("click",()=>b.closest("dialog")
 $$("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
 function confirmBox(title,body,okText){return new Promise(res=>{$("#cfTitle").textContent=title;$("#cfBody").textContent=body;$("#cfOk").textContent=okText||"확인";
   const dlg=$("#confirmDlg");let done=false;const ok=()=>{done=true;dlg.close();res(true)};$("#cfOk").onclick=ok;dlg.addEventListener("close",()=>{if(!done)res(false)},{once:true});dlg.showModal();});}
-$$("[data-open-settings]").forEach(b=>b.onclick=()=>{$("#fxInput").value=Math.round(fxRate("USD"));renderSnaps();renderNotifySetting();$("#setDlg").showModal();});
+$$("[data-open-settings]").forEach(b=>b.onclick=()=>{$("#fxInput").value=Math.round(fxRate("USD"));renderSnaps();renderNotifySetting();renderPinSetting();$("#setDlg").showModal();});
 $$("[data-open-help]").forEach(b=>b.onclick=()=>$("#helpDlg").showModal());
 
 /* ================= holding CRUD ================= */
@@ -2051,6 +2074,33 @@ function dailyNotify(){if(!LS.get("jasan-notify",false)||notifyState()!=="grante
   const m=new Date().getMonth();if(m===11){const ye=yearEnd(t);const g=ye.acts.reduce((s,a)=>s+a.gain,0);if(g>0)msgs.push(`연말정산 D-${ye.dleft}: 약 ${short(g)}원 절세 기회`);}
   if(!msgs.length)return;try{const n=new Notification("자산 키움 노트",{body:msgs.slice(0,3).join("\n")+(msgs.length>3?`\n외 ${msgs.length-3}건`:"")});n.onclick=()=>{window.focus();location.hash="#home";};LS.set("jasan-notified",today());}catch(e){}}
 
+/* ================= monthly report ================= */
+function buildReport(){const t=totals();const now=new Date();const ym_=`${now.getFullYear()}년 ${now.getMonth()+1}월`;const mAgo=(()=>{const d=new Date();d.setDate(d.getDate()-30);const f=iso(d);return [...hist].reverse().find(x=>x.d<=f)||hist[0];})();
+  const chg=mAgo?t.net-(mAgo.n??mAgo.v):0,contrib=mAgo?netInvested()-(mAgo.f??mAgo.p):0;const xr=portfolioXirr(t),ps=perfStats(),mr=modelRisk(t),w=wageTax(0),pi=passiveIncome(t);const lastFlow=flows.slice(-1)[0];
+  const top=items.filter(h=>!isDebt(h)).map(h=>({h,...holdingReturn(h)})).sort((a,b)=>b.total-a.total);const al=alerts(t).slice(0,6);const tg=targets(t),band=num(UI.band)||5;
+  const drift=Object.keys(CLASSES).map(k=>({k,d:t.value?((t.byCls[k]||0)/t.value*100-num(tg[k])):0})).filter(x=>Math.abs(x.d)>band);
+  const row=(k,v)=>`<tr><td>${k}</td><td class="r num">${v}</td></tr>`;
+  return `<div class="rp-head"><div><div class="xs muted">자산 키움 노트 · 월간 리포트</div><h1>${ym_} 자산 리포트</h1><div class="small muted">작성 ${today()} · 시장 정보 ${esc(DATA.asOfLabel||"")}</div></div><div class="rp-big"><div class="xs muted">순자산</div><div class="big num">${short(t.net)}원</div><div class="small ${sgn(chg)}">${mAgo&&mAgo.d<today()?`${mAgo.d.slice(5).replace("-","/")} 이후 ${chg>=0?"+":""}${short(chg)}원 (저축 ${short(contrib)} · 운용 ${chg-contrib>=0?"+":""}${short(chg-contrib)})`:"기록 쌓는 중"}</div></div></div>
+   <div class="rp-grid"><section><h3>요약</h3><table class="dense" style="min-width:0"><tbody>${row("총자산",won(t.value)+"원")}${row("부채",won(t.debt)+"원")}${row("평가손익",(t.gain>=0?"+":"")+won(t.gain)+"원")}${row("연환산 수익률 (XIRR)",xr&&xr.r!=null&&xr.span>=30?pct(xr.r):"–")}${row("최대 낙폭",ps?pct(ps.mdd):"–")}${row("기대수익률 · 변동성",mr?pctp(mr.mu)+" · "+pctp(mr.sig):"–")}${row("세후 자산소득 (연)",short(pi.net)+"원")}</tbody></table></section>
+   <section><h3>현금흐름 · 세금</h3><table class="dense" style="min-width:0"><tbody>${row("연봉 (총급여)",won(PROFILE.salary)+"원")}${row("월 실수령",won(incomeOf())+"원")}${lastFlow?row(`${lastFlow.m} 저축률`,lastFlow.income?Math.round((lastFlow.income-lastFlow.expense)/lastFlow.income*100)+"%":"–"):row("최근 결산","없음")}${row("월 고정지출",won(fixeds.reduce((s,f)=>s+fixMonthly(f),0))+"원")}${row("예상 결정세액",won(w.total)+"원")}${row("연금 세액공제 예상",won(w.pensCredit*1.1)+"원")}</tbody></table></section></div>
+   <section><h3>자산 구성</h3><div class="bar" style="height:14px">${Object.entries(t.byCls).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span style="width:${v/t.value*100}%;background:var(${CLASSES[k].c})"></span>`).join("")}</div><div class="row wrap small" style="gap:12px;margin-top:6px">${Object.entries(t.byCls).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span><span class="badge-dot" style="background:var(${CLASSES[k].c})"></span>${CLASSES[k].label} ${pctp(v/t.value,0)}</span>`).join("")}</div>
+   ${drift.length?`<div class="small" style="margin-top:6px">목표 비중 이탈: ${drift.map(x=>`${CLASSES[x.k].label} ${x.d>0?"+":""}${x.d.toFixed(1)}%p`).join(", ")}</div>`:`<div class="small muted" style="margin-top:6px">모든 자산군이 목표 비중 ±${band}%p 안에 있어요.</div>`}</section>
+   <div class="rp-grid"><section><h3>수익 상위</h3><table class="dense" style="min-width:0"><tbody>${top.slice(0,5).map(r=>row(esc(r.h.name),`<span class="${sgn(r.total)}">${r.total>=0?"+":""}${short(r.total)}원</span>`)).join("")||row("데이터 없음","")}</tbody></table></section>
+   <section><h3>이번 달 할 일</h3>${al.length?`<ul class="small" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">${al.map(a=>`<li>${a[1]}</li>`).join("")}</ul>`:'<div class="small muted">특별히 할 일이 없어요.</div>'}</section></div>
+   <div class="xs muted">이 리포트는 학습·기록용 추정치이며 투자 권유가 아닙니다.</div>`;}
+function openReport(){$("#rpBody").innerHTML=buildReport();$("#rpDlg").showModal();}
+$$("[data-open-report]").forEach(b=>b.onclick=openReport);
+$("#rpPrint").onclick=()=>{document.body.classList.add("print-report");setTimeout(()=>{window.print();document.body.classList.remove("print-report");},80);};
+
+/* ================= screen lock (PIN) ================= */
+async function hashPin(pin){const d=new TextEncoder().encode("jasan:"+pin);try{const h=await crypto.subtle.digest("SHA-256",d);return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,"0")).join("");}catch(e){let x=0;for(const c of d)x=(x*31+c)>>>0;return "f"+x;}}
+function lockNow(){if(!LS.get("jasan-pin",""))return;document.body.classList.add("locked");$("#lockPin").value="";$("#lockMsg").textContent="";setTimeout(()=>$("#lockPin").focus(),50);}
+$("#lockForm").addEventListener("submit",async e=>{e.preventDefault();const h=await hashPin($("#lockPin").value);if(h===LS.get("jasan-pin","")){document.body.classList.remove("locked");}else{$("#lockMsg").textContent="PIN이 맞지 않아요";$("#lockPin").value="";}});
+$("#pinBtn").onclick=async()=>{const cur=LS.get("jasan-pin","");const v=$("#pinNew").value.trim();if(cur&&!v){LS.set("jasan-pin","");toast("화면 잠금을 껐어요");renderPinSetting();return;}if(!/^\d{4,8}$/.test(v)){toast("PIN은 숫자 4~8자리로 입력하세요");return;}LS.set("jasan-pin",await hashPin(v));$("#pinNew").value="";toast("화면 잠금을 켰어요 · 앱을 열 때와 10분 쉬면 잠겨요");renderPinSetting();};
+function renderPinSetting(){const on=!!LS.get("jasan-pin","");$("#pinBtn").textContent=on?"PIN 변경 (비우면 끄기)":"켜기";$("#pinNote").textContent=on?"켜짐 · 데이터를 암호화하지는 않고, 다른 사람이 화면을 보지 못하게 막아요.":"같은 PC를 쓰는 사람이 화면을 보지 못하게 PIN으로 잠가요 (데이터 암호화는 아님).";}
+let idleT=0;const bumpIdle=()=>{clearTimeout(idleT);if(LS.get("jasan-pin",""))idleT=setTimeout(lockNow,10*60e3);};["pointerdown","keydown"].forEach(ev=>document.addEventListener(ev,bumpIdle,{passive:true}));
+if(LS.get("jasan-pin",""))lockNow();bumpIdle();
+
 /* ================= in-app guide ================= */
 const GUIDE_SECTIONS=[
  ["처음 시작하기",["왼쪽 아래 '내 정보 · 연봉'에서 연봉과 생활비를 입력하세요. 실수령액, 4대보험, 세금, 월급 배분이 모두 이 값으로 계산돼요.","자산 화면의 [+ 현금·입출금] [+ 투자] 같은 버튼으로 월급통장부터 하나씩 추가하세요. 유형에 맞는 입력 칸만 나와요.","설정 > 예시로 채우기를 누르면 화면 구성을 미리 볼 수 있어요. 실제 사용 전에 '모든 데이터 지우기'로 지우세요."]],
@@ -2100,7 +2150,7 @@ $("#cmapOk").onclick=()=>{const {out}=csvBuild();if(!out.length){toast("가져�
   persist();$("#cmapDlg").close();renderAll();toast(`거래 ${out.length}건을 가져왔어요`,"되돌리기",undo);};
 
 /* ================= command palette ================= */
-function cmdItems(){const acts=[["자산 추가 (N)",()=>openHolding()],["거래 기록 (T)",()=>openTx()],["시세·잔액 일괄 업데이트",()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),60);}],["연봉 · 내 정보 수정",()=>openProfile()],["월간 결산 기록",()=>{location.hash="#salary";setTimeout(()=>$("#fl-income").focus(),80);}],["목표 추가",()=>openGoal()],["고정지출 추가",()=>openFix()],["내 집 마련 플래너",()=>{location.hash="#grow";setTimeout(()=>$("#hbOut").scrollIntoView({behavior:"smooth"}),120);}],["노후 준비 계산기",()=>{location.hash="#grow";setTimeout(()=>$("#retOut").scrollIntoView({behavior:"smooth"}),120);}],["백업 내보내기",()=>$("#expBtn").click()],["현재 화면 PDF 저장",()=>$("[data-print]").click()],["환율 지금 갱신",()=>refreshFx(true)],["설정 열기",()=>$("[data-open-settings]").click()],["사용 설명서",()=>$("#guideDlg").showModal()],["바탕화면 알림 설정",()=>$("[data-open-settings]").click()]];
+function cmdItems(){const acts=[["자산 추가 (N)",()=>openHolding()],["거래 기록 (T)",()=>openTx()],["시세·잔액 일괄 업데이트",()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),60);}],["연봉 · 내 정보 수정",()=>openProfile()],["월간 결산 기록",()=>{location.hash="#salary";setTimeout(()=>$("#fl-income").focus(),80);}],["목표 추가",()=>openGoal()],["고정지출 추가",()=>openFix()],["내 집 마련 플래너",()=>{location.hash="#grow";setTimeout(()=>$("#hbOut").scrollIntoView({behavior:"smooth"}),120);}],["노후 준비 계산기",()=>{location.hash="#grow";setTimeout(()=>$("#retOut").scrollIntoView({behavior:"smooth"}),120);}],["백업 내보내기",()=>$("#expBtn").click()],["현재 화면 PDF 저장",()=>$("[data-print]").click()],["환율 지금 갱신",()=>refreshFx(true)],["설정 열기",()=>$("[data-open-settings]").click()],["사용 설명서",()=>$("#guideDlg").showModal()],["월간 리포트",()=>openReport()],["지금 화면 잠그기",()=>lockNow()],["바탕화면 알림 설정",()=>$("[data-open-settings]").click()]];
   return [...PAGES.map(([k,l])=>({g:"화면",l:l+" 화면으로",f:()=>location.hash="#"+k})),...acts.map(([l,f])=>({g:"동작",l,f})),...items.map(h=>({g:TYPES[h.type].label,l:h.name+(h.account?" · "+h.account:""),f:()=>openDetail(h.id),v:valKRW(h)}))];}
 let cmdSel=0,cmdList=[];
 function renderCmd(){const q=$("#cmdQ").value.trim().toLowerCase();cmdList=cmdItems().filter(x=>!q||(x.l+" "+x.g).toLowerCase().includes(q)).slice(0,12);cmdSel=Math.min(cmdSel,Math.max(0,cmdList.length-1));
@@ -2113,7 +2163,7 @@ $("#cmdQ").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefau
 $$("[data-open-cmd]").forEach(b=>b.onclick=openCmd);
 
 /* ================= shortcuts ================= */
-document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();if(!$("#cmdDlg").open)openCmd();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&UNDO&&!["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName)){e.preventDefault();undo();return;}if(e.ctrlKey||e.metaKey||e.altKey)return;const tg=e.target.tagName;if(["INPUT","SELECT","TEXTAREA"].includes(tg)||document.querySelector("dialog[open]"))return;
+document.addEventListener("keydown",e=>{if(document.body.classList.contains("locked"))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();if(!$("#cmdDlg").open)openCmd();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&UNDO&&!["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName)){e.preventDefault();undo();return;}if(e.ctrlKey||e.metaKey||e.altKey)return;const tg=e.target.tagName;if(["INPUT","SELECT","TEXTAREA"].includes(tg)||document.querySelector("dialog[open]"))return;
   if(e.key==="n"||e.key==="N"){e.preventDefault();openHolding();}else if(e.key==="t"||e.key==="T"){e.preventDefault();openTx();}
   else if(e.key==="/"){e.preventDefault();if(curPage!=="assets"&&curPage!=="ledger")location.hash="#assets";setTimeout(()=>$(curPage==="ledger"?"#lSearch":"#aSearch").focus(),50);}
   else if(e.key==="?"){$("#helpDlg").showModal();}else if(/^[1-8]$/.test(e.key)){location.hash="#"+PAGES[+e.key-1][0];}});
