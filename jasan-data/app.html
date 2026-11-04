@@ -457,6 +457,8 @@ body.locked .app,body.locked dialog{visibility:hidden}
             <label class="field">은퇴 후 월 생활비 (현재가치)<input id="r-spend" type="number" min="0" step="100000"></label>
             <label class="field">국민연금 예상 월액 (현재가치)<input id="r-nps" type="number" min="0" step="10000"></label>
             <label class="field">국민연금 수령 나이<input id="r-npsage" type="number" min="60" max="70"></label>
+            <label class="field">국민연금 가입 시작 나이<input id="r-npsstart" type="number" min="18" max="60"></label>
+            <label class="field" style="justify-content:flex-end"><button type="button" class="btn ghost sm" id="npsEst">국민연금 예상액 자동 추정</button></label>
             <label class="field">물가상승률 (%)<input id="r-inf" type="number" min="0" step="0.1"></label>
             <label class="field">은퇴 후 운용수익률 (%)<input id="r-post" type="number" min="0" step="0.1"></label>
           </form>
@@ -666,6 +668,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
   <label class="field">분류<select id="fx-cat"><option value="ins">보험</option><option value="sub">구독</option><option value="comm">통신</option><option value="home">주거·관리비</option><option value="loan">대출 상환</option><option value="edu">교육</option><option value="etc">기타</option></select></label>
   <label class="field">금액(원)<input id="fx-amount" type="number" min="0" step="100" inputmode="numeric"></label>
   <label class="field">주기<select id="fx-cycle"><option value="m">매월</option><option value="y">매년</option></select></label>
+  <label class="field" id="fx-ins-wrap" hidden>보험 종류<select id="fx-ins"><option value="silson">실손의료비</option><option value="health">암·뇌·심장 진단비</option><option value="term">정기(사망)</option><option value="whole">종신</option><option value="driver">운전자·자동차</option><option value="home">화재·주택</option><option value="saving">연금·저축성</option><option value="other">기타</option></select></label>
   <label class="field">결제일<input id="fx-day" type="number" min="1" max="31"></label>
   <label class="field">갱신·만기·해지 기한<input id="fx-renew" type="date"></label>
   <label class="field" style="grid-column:1/-1">메모<input id="fx-memo" placeholder="예: 보장 내용, 해지 방법"></label></div>
@@ -685,7 +688,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.19.0";
+const APP_VERSION="3.20.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1890,9 +1893,11 @@ function renderCalendar(t){const mons=incomeCalendar(t);const tot=mons.reduce((s
 
 /* ---- retirement planner ---- */
 const RET_KEY="jasan-retire";
-function retDefaults(){const g=num(PROFILE.salary);return {retAge:60,life:90,spend:Math.round(Math.max(1500000,num(PROFILE.expense)*0.9)/100000)*100000,nps:Math.round(Math.min(1800000,g/12*0.27)/10000)*10000,npsAge:65,inf:2.5,post:3.5,all:false};}
+function retDefaults(){const g=num(PROFILE.salary);return {npsStart:27,retAge:60,life:90,spend:Math.round(Math.max(1500000,num(PROFILE.expense)*0.9)/100000)*100000,nps:Math.round(Math.min(1800000,g/12*0.27)/10000)*10000,npsAge:65,inf:2.5,post:3.5,all:false};}
 let RET={...retDefaults(),...LS.get(RET_KEY,{})};
-const RET_F={retAge:"r-age",life:"r-life",spend:"r-spend",nps:"r-nps",npsAge:"r-npsage",inf:"r-inf",post:"r-post"};
+function npsEstimate(){const A=3190000,cap=6370000,repl=.43;const B=Math.min(cap,Math.max(400000,num(PROFILE.salary)/12));const start=Math.max(18,num(RET.npsStart)||27);const yrs=Math.max(10,Math.min(60,num(RET.retAge)||60)-start);return Math.round(repl*(A+B)/2*Math.min(yrs,40)/40/10000)*10000;}
+$("#npsEst").onclick=()=>{RET.nps=npsEstimate();LS.set(RET_KEY,RET);fillRet();renderRetire(totals());toast(`국민연금 약 월 ${short(RET.nps)}원으로 추정했어요 (현재가치)`);};
+const RET_F={npsStart:"r-npsstart",retAge:"r-age",life:"r-life",spend:"r-spend",nps:"r-nps",npsAge:"r-npsage",inf:"r-inf",post:"r-post"};
 function fillRet(){Object.entries(RET_F).forEach(([k,id])=>$("#"+id).value=RET[k]);$("#r-all").checked=!!RET.all;}
 $("#retForm").addEventListener("input",()=>{Object.entries(RET_F).forEach(([k,id])=>RET[k]=num($("#"+id).value));RET.all=$("#r-all").checked;LS.set(RET_KEY,RET);clearTimeout(renderRetire.t);renderRetire.t=setTimeout(()=>renderRetire(totals()),120);});
 $("#retForm").addEventListener("submit",e=>e.preventDefault());
@@ -1940,20 +1945,28 @@ function renderHB(t){if(!$("#hb-price").value)fillHB();const price=num(HB.price)
    <div class="note">LTV·DSR·대출 상한은 정부 대책에 따라 자주 바뀌어요. 기본값은 2026년 기준 추정치이니 '규제 기준값'을 은행 상담 결과로 고쳐 쓰세요. 취득세는 1~3%(지방교육세 포함, 생애최초 200만 원 감면 반영), 중개보수 0.4%와 기타 150만 원을 가정했어요. 기존 대출 상환액은 등록한 부채의 월 상환액을 썼고, 전세자금대출은 매수 시 보증금으로 갚는다고 보고 제외했어요.</div>`;}
 
 /* ---- fixed costs (insurance, subscriptions) ---- */
+const INS_TYPES={silson:"실손의료비",health:"암·뇌·심장 진단비",term:"정기(사망)",whole:"종신",driver:"운전자·자동차",home:"화재·주택",saving:"연금·저축성",other:"기타"};
+function syncFixIns(){$("#fx-ins-wrap").hidden=$("#fx-cat").value!=="ins";}
+$("#fx-cat").addEventListener("change",syncFixIns);
 const FX_CATS={ins:"보험",sub:"구독",comm:"통신",home:"주거·관리비",loan:"대출 상환",edu:"교육",etc:"기타"};
 let fixeds=LS.get("jasan-fixed",[]);if(!Array.isArray(fixeds))fixeds=[];
 const fixMonthly=f=>f.cycle==="y"?num(f.amount)/12:num(f.amount);
 let editingFix=null;
 function openFix(id){editingFix=id||null;const f=fixeds.find(x=>x.id===id);$("#fxTitle").textContent=f?"고정지출 수정":"고정지출 추가";$("#fxDel").hidden=!f;
-  $("#fx-name").value=f?.name||"";$("#fx-cat").value=f?.cat||"sub";$("#fx-amount").value=f?.amount||"";$("#fx-cycle").value=f?.cycle||"m";$("#fx-day").value=f?.day||"";$("#fx-renew").value=f?.renew||"";$("#fx-memo").value=f?.memo||"";$("#fixDlg").showModal();setTimeout(()=>$("#fx-name").focus(),30);}
-$("#fixForm").addEventListener("submit",e=>{e.preventDefault();const f={id:editingFix||uid(),name:$("#fx-name").value.trim()||FX_CATS[$("#fx-cat").value],cat:$("#fx-cat").value,amount:num($("#fx-amount").value),cycle:$("#fx-cycle").value,day:num($("#fx-day").value)||"",renew:$("#fx-renew").value,memo:$("#fx-memo").value.trim()};
+  $("#fx-name").value=f?.name||"";$("#fx-cat").value=f?.cat||"sub";$("#fx-amount").value=f?.amount||"";$("#fx-cycle").value=f?.cycle||"m";$("#fx-day").value=f?.day||"";$("#fx-renew").value=f?.renew||"";$("#fx-memo").value=f?.memo||"";$("#fx-ins").value=f?.ins||"silson";syncFixIns();$("#fixDlg").showModal();setTimeout(()=>$("#fx-name").focus(),30);}
+$("#fixForm").addEventListener("submit",e=>{e.preventDefault();const f={id:editingFix||uid(),name:$("#fx-name").value.trim()||FX_CATS[$("#fx-cat").value],cat:$("#fx-cat").value,amount:num($("#fx-amount").value),cycle:$("#fx-cycle").value,day:num($("#fx-day").value)||"",renew:$("#fx-renew").value,memo:$("#fx-memo").value.trim(),ins:$("#fx-cat").value==="ins"?$("#fx-ins").value:undefined};
   if(!(f.amount>0)){toast("금액을 입력하세요");return;}fixeds=editingFix?fixeds.map(x=>x.id===editingFix?f:x):fixeds.concat(f);LS.set("jasan-fixed",fixeds);$("#fixDlg").close();renderFixed();toast("저장했어요");});
 $("#fxDel").onclick=()=>{const prev=fixeds.slice();fixeds=fixeds.filter(x=>x.id!==editingFix);LS.set("jasan-fixed",fixeds);$("#fixDlg").close();renderFixed();toast("삭제했어요","되돌리기",()=>{fixeds=prev;LS.set("jasan-fixed",fixeds);renderFixed();});};
 $("#fixAdd").onclick=()=>openFix();
 function renderFixed(){const inc=incomeOf();const tot=fixeds.reduce((s,f)=>s+fixMonthly(f),0);const by={};fixeds.forEach(f=>by[f.cat]=(by[f.cat]||0)+fixMonthly(f));
   const soon=fixeds.filter(f=>f.renew).map(f=>({f,d:Math.ceil(days(today(),f.renew))})).filter(x=>x.d>=0&&x.d<=45).sort((a,b)=>a.d-b.d);
   if(!fixeds.length){$("#fixOut").innerHTML=`<div class="empty">보험료·구독·통신비처럼 매달 빠져나가는 돈을 등록하면 새는 돈을 찾아드려요.</div>`;return;}
-  $("#fixOut").innerHTML=`<div class="split"><div class="tile"><div class="k">월 고정지출</div><div class="v num">${short(tot)}원</div><div class="n">연 ${short(tot*12)}원${inc?` · 실수령의 ${pctp(tot/inc,0)}`:""}</div></div>${Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`<div class="tile"><div class="k">${FX_CATS[k]}</div><div class="v num">${short(v)}원</div><div class="n">${inc?`실수령의 ${pctp(v/inc,1)}`:""}</div></div>`).join("")}</div>
+  const ins=fixeds.filter(f=>f.cat==="ins");let insHtml="";if(ins.length){const has=k=>ins.some(f=>f.ins===k);const insTot=ins.reduce((s,f)=>s+fixMonthly(f),0);const heavy=ins.filter(f=>["whole","saving"].includes(f.ins)).reduce((s,f)=>s+fixMonthly(f),0);const dep=num(PROFILE.dependents)>1||members().length>1;const hasCar=has("driver");
+    const chk=[[has("silson"),"실손의료비","병원비 대부분을 돌려받는 기본 보장이에요.",true],[has("health"),"암·뇌·심장 진단비","큰 병으로 일을 못 할 때 생활비를 받는 보장이에요.",true],[has("term")||has("whole"),"사망 보장 (정기보험)",dep?"부양가족이 있으면 소득의 3~5년치를 정기보험으로 준비하는 게 일반적이에요.":"부양가족이 없으면 우선순위가 낮아요.",dep]];
+    insHtml=`<div class="sec-title">보험 보장 점검</div><div class="stack" style="gap:6px">${chk.map(([ok,t,d,need])=>`<div class="alert"><span class="dot" style="background:${ok?"var(--good)":need?"var(--warn)":"var(--info)"}"></span><span><b>${t}</b> ${ok?"가입":"미확인"}<br><span class="small ink2">${d}</span></span></div>`).join("")}
+    ${insTot&&heavy/insTot>.5?`<div class="alert"><span class="dot" style="background:var(--warn)"></span><span><b>종신·저축성 보험이 보험료의 ${pctp(heavy/insTot,0)}</b><br><span class="small ink2">보장 대비 보험료가 큰 편이에요. 사망 보장은 정기보험이 훨씬 저렴해요. 다만 해지하면 원금 손실이 클 수 있으니 해지환급금을 먼저 확인하세요.</span></span></div>`:""}
+    ${ins.filter(f=>f.ins==="silson").length>1?'<div class="alert"><span class="dot" style="background:var(--bad)"></span><span><b>실손보험이 2개 이상이에요</b><br><span class="small ink2">실손은 여러 개 가입해도 실제 병원비만큼만 나눠서 받아요. 하나만 남기고 정리하세요.</span></span></div>':""}</div>`;}
+  $("#fixOut").innerHTML=insHtml+`<div class="split"><div class="tile"><div class="k">월 고정지출</div><div class="v num">${short(tot)}원</div><div class="n">연 ${short(tot*12)}원${inc?` · 실수령의 ${pctp(tot/inc,0)}`:""}</div></div>${Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`<div class="tile"><div class="k">${FX_CATS[k]}</div><div class="v num">${short(v)}원</div><div class="n">${inc?`실수령의 ${pctp(v/inc,1)}`:""}</div></div>`).join("")}</div>
    ${inc&&(by.ins||0)/inc>.1?`<div class="alert"><span class="dot" style="background:var(--warn)"></span><span>보험료가 실수령의 ${pctp(by.ins/inc,0)}예요. 일반적으로 5~10% 이내가 권장돼요. 중복 보장(특히 실손)과 저축성 보험을 점검해 보세요.</span></div>`:""}
    ${(by.sub||0)>50000?`<div class="alert"><span class="dot" style="background:var(--info)"></span><span>구독료가 월 ${short(by.sub)}원이에요. 지난 한 달간 안 쓴 구독을 해지하면 연 ${short((by.sub||0)*12)}원 중 일부를 아낄 수 있어요.</span></div>`:""}
    ${soon.map(x=>`<div class="alert"><span class="dot" style="background:var(--warn)"></span><span>'${esc(x.f.name)}' 갱신·해지 기한 D-${x.d} (${x.f.renew})</span></div>`).join("")}
