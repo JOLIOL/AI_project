@@ -254,6 +254,18 @@ details.gd{border-radius:14px;background:var(--surface-2);padding:12px 16px}
 details.gd summary{cursor:pointer;font-weight:650}
 details.gd ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--ink-2)}
 #guideDlg .sheet{max-height:88vh;overflow:auto}
+
+.fold{border:0;background:none;color:var(--muted);cursor:pointer;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;margin-left:auto;flex:none;order:99}
+.fold:hover{background:var(--surface-2);color:var(--ink)}
+.card-head{flex-wrap:nowrap}.card-head>*:not(h3):not(.fold){flex-shrink:1;min-width:0}
+.card.collapsed>*:not(.card-head){display:none!important}
+.card.collapsed .fold svg{transform:rotate(-90deg)}
+.card.collapsed{gap:0}
+.jump{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);padding:8px 0;margin:-8px 0}
+.jump button{font-size:12px;padding:5px 10px}
+.card{scroll-margin-top:60px}
+@media (max-width:760px){.jump{top:calc(58px + env(safe-area-inset-top,0px));flex-wrap:nowrap;overflow-x:auto}.card-head{flex-wrap:wrap}}
+@media print{.jump,.fold{display:none!important}.card.collapsed>*{display:revert!important}}
 </style>
 </head>
 <body>
@@ -401,7 +413,36 @@ details.gd ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:co
       <!-- GROW -->
       <section class="page" id="p-grow" hidden>
         <div class="page-head"><div><h1>목표 · 시뮬레이션</h1><div class="sub">목표 달성 확률을 몬테카를로 방식으로 계산해요.</div></div><button class="btn" id="addGoal">＋ 목표 추가</button></div>
-        <div class="card"><div class="card-head"><h3>내 집 마련 플래너</h3><span class="xs muted">대출 한도 · DSR · 필요 자기자본</span></div>
+
+        <div class="card"><div class="card-head"><h3>내 목표</h3></div><div id="gGoals"></div></div>
+        <div class="card">
+          <div class="card-head"><h3>몬테카를로 시뮬레이션</h3><span class="xs muted" id="mcInfo"></span></div>
+          <form class="fields" id="mcForm">
+            <label class="field">시작 자산(원)<input id="mc-start" type="number" min="0" step="100000"></label>
+            <label class="field">매달 추가 투자(원)<input id="mc-monthly" type="number" min="0" step="10000"></label>
+            <label class="field">기간(년)<input id="mc-years" type="number" min="1" max="40" value="10"></label>
+            <label class="field">목표 금액(원)<input id="mc-goal" type="number" min="0" step="1000000"></label>
+            <label class="field">기대수익률(연 %)<input id="mc-mu" type="number" step="0.1"></label>
+            <label class="field">변동성(연 %)<input id="mc-sigma" type="number" step="0.5" min="0"></label>
+          </form>
+          <div class="row wrap" style="gap:14px"><label class="inline-check"><input type="checkbox" id="mc-real">물가 연 2.5% 반영 (실질 가치)</label><button class="btn sm ghost" id="mcReset">내 포트폴리오 값으로</button></div>
+          <div class="kpis" id="mcKpis"></div>
+          <div class="chart" id="mcChart"></div>
+          <div class="row wrap small" style="gap:14px"><span class="row" style="gap:6px"><i style="width:14px;height:10px;background:var(--c1);opacity:.18;border-radius:2px"></i>10~90% 구간</span><span class="row" style="gap:6px"><i style="width:14px;height:10px;background:var(--c1);opacity:.35;border-radius:2px"></i>25~75% 구간</span><span class="row" style="gap:6px"><i style="width:14px;height:3px;background:var(--c1)"></i>중앙값</span><span class="row muted" style="gap:6px"><i style="width:14px;border-top:2px dashed var(--muted)"></i>넣은 돈</span></div>
+          <div class="note">2,000개 경로를 무작위로 만들어 분포를 봅니다. 기대수익률·변동성은 자산군별 장기 가정치를 보유 비중으로 가중한 값이며, 미래 수익을 보장하지 않아요.</div>
+        </div>
+        <div class="card"><div class="card-head"><h3>노후 준비 계산기</h3><span class="xs muted">국민연금 + 퇴직연금 + 개인연금</span></div>
+          <form class="fields" id="retForm">
+            <label class="field">은퇴 나이<input id="r-age" type="number" min="40" max="80"></label>
+            <label class="field">기대 수명<input id="r-life" type="number" min="60" max="110"></label>
+            <label class="field">은퇴 후 월 생활비 (현재가치)<input id="r-spend" type="number" min="0" step="100000"></label>
+            <label class="field">국민연금 예상 월액 (현재가치)<input id="r-nps" type="number" min="0" step="10000"></label>
+            <label class="field">국민연금 수령 나이<input id="r-npsage" type="number" min="60" max="70"></label>
+            <label class="field">물가상승률 (%)<input id="r-inf" type="number" min="0" step="0.1"></label>
+            <label class="field">은퇴 후 운용수익률 (%)<input id="r-post" type="number" min="0" step="0.1"></label>
+          </form>
+          <label class="inline-check"><input type="checkbox" id="r-all" form="retForm">연금 계좌뿐 아니라 전체 투자자산을 노후자금으로 계산</label>
+          <div class="stack" id="retOut"></div></div>        <div class="card"><div class="card-head"><h3>내 집 마련 플래너</h3><span class="xs muted">대출 한도 · DSR · 필요 자기자본</span></div>
           <form class="fields" id="hbForm">
             <label class="field">목표 매매가(원)<input id="hb-price" type="number" min="0" step="10000000"></label>
             <label class="field">지역<select id="hb-region"><option value="metro">수도권·규제지역</option><option value="local">비규제 지방</option></select></label>
@@ -420,38 +461,10 @@ details.gd ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:co
               <label class="field" style="justify-content:flex-end"><button type="button" class="btn ghost sm" id="hbReset">기본값으로</button></label></div></details>
           </form>
           <div class="stack" id="hbOut"></div></div>
-        <div class="card"><div class="card-head"><h3>노후 준비 계산기</h3><span class="xs muted">국민연금 + 퇴직연금 + 개인연금</span></div>
-          <form class="fields" id="retForm">
-            <label class="field">은퇴 나이<input id="r-age" type="number" min="40" max="80"></label>
-            <label class="field">기대 수명<input id="r-life" type="number" min="60" max="110"></label>
-            <label class="field">은퇴 후 월 생활비 (현재가치)<input id="r-spend" type="number" min="0" step="100000"></label>
-            <label class="field">국민연금 예상 월액 (현재가치)<input id="r-nps" type="number" min="0" step="10000"></label>
-            <label class="field">국민연금 수령 나이<input id="r-npsage" type="number" min="60" max="70"></label>
-            <label class="field">물가상승률 (%)<input id="r-inf" type="number" min="0" step="0.1"></label>
-            <label class="field">은퇴 후 운용수익률 (%)<input id="r-post" type="number" min="0" step="0.1"></label>
-          </form>
-          <label class="inline-check"><input type="checkbox" id="r-all" form="retForm">연금 계좌뿐 아니라 전체 투자자산을 노후자금으로 계산</label>
-          <div class="stack" id="retOut"></div></div>
-        <div class="card"><div class="card-head"><h3>배당·이자 수령 캘린더</h3><span class="xs muted">향후 12개월 · 세후 추정</span></div><div class="stack" id="calOut"></div></div>
         <div class="card"><div class="card-head"><h3>경제적 자유 지표</h3><span class="xs muted">자산소득으로 생활비를 얼마나 충당하나</span></div><div class="stack" id="fireOut"></div></div>
-        <div class="card"><div class="card-head"><h3>내 목표</h3></div><div id="gGoals"></div></div>
-        <div class="card">
-          <div class="card-head"><h3>몬테카를로 시뮬레이션</h3><span class="xs muted" id="mcInfo"></span></div>
-          <form class="fields" id="mcForm">
-            <label class="field">시작 자산(원)<input id="mc-start" type="number" min="0" step="100000"></label>
-            <label class="field">매달 추가 투자(원)<input id="mc-monthly" type="number" min="0" step="10000"></label>
-            <label class="field">기간(년)<input id="mc-years" type="number" min="1" max="40" value="10"></label>
-            <label class="field">목표 금액(원)<input id="mc-goal" type="number" min="0" step="1000000"></label>
-            <label class="field">기대수익률(연 %)<input id="mc-mu" type="number" step="0.1"></label>
-            <label class="field">변동성(연 %)<input id="mc-sigma" type="number" step="0.5" min="0"></label>
-          </form>
-          <div class="row wrap" style="gap:14px"><label class="inline-check"><input type="checkbox" id="mc-real">물가 연 2.5% 반영 (실질 가치)</label><button class="btn sm ghost" id="mcReset">내 포트폴리오 값으로</button></div>
-          <div class="kpis" id="mcKpis"></div>
-          <div class="chart" id="mcChart"></div>
-          <div class="row wrap small" style="gap:14px"><span class="row" style="gap:6px"><i style="width:14px;height:10px;background:var(--c1);opacity:.18;border-radius:2px"></i>10~90% 구간</span><span class="row" style="gap:6px"><i style="width:14px;height:10px;background:var(--c1);opacity:.35;border-radius:2px"></i>25~75% 구간</span><span class="row" style="gap:6px"><i style="width:14px;height:3px;background:var(--c1)"></i>중앙값</span><span class="row muted" style="gap:6px"><i style="width:14px;border-top:2px dashed var(--muted)"></i>넣은 돈</span></div>
-          <div class="note">2,000개 경로를 무작위로 만들어 분포를 봅니다. 기대수익률·변동성은 자산군별 장기 가정치를 보유 비중으로 가중한 값이며, 미래 수익을 보장하지 않아요.</div>
-        </div>
+        <div class="card"><div class="card-head"><h3>배당·이자 수령 캘린더</h3><span class="xs muted">향후 12개월 · 세후 추정</span></div><div class="stack" id="calOut"></div></div>
         <div class="card"><div class="card-head"><h3>자산 진단</h3></div><div class="stack" id="gAdvice"></div></div>
+      
       </section>
 
       <!-- GUIDE -->
@@ -639,7 +652,7 @@ details.gd ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:co
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.11.0";
+const APP_VERSION="3.12.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1941,8 +1954,17 @@ function renderGuide(){$("#guideSub").textContent=`${DATA.asOfLabel||""} · 매�
   $("#assumTbl").innerHTML=`<div class="tablewrap"><table class="dense" style="min-width:420px"><thead><tr><th>유형</th><th class="r">기대수익률(연)</th><th class="r">변동성(연)</th></tr></thead><tbody>${Object.keys(TYPES).map(k=>{const a=assum(k);return `<tr style="cursor:default"><td><span class="badge-dot" style="background:var(${TYPES[k].c})"></span>${TYPES[k].label}</td><td class="r num">${a.r.toFixed(1)}%</td><td class="r num">${a.v.toFixed(1)}%</td></tr>`}).join("")}</tbody></table></div>`;
   $("#sourcesLine").innerHTML=(DATA.sources||[]).length?"출처: "+DATA.sources.filter(x=>/^https?:\/\//.test(x.url)).map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--muted)">${esc(x.title)}</a>`).join(" · "):"";}
 
+/* section jump chips + collapsible cards */
+function setupSections(){PAGES.forEach(([k])=>{const pg=$("#p-"+k);if(!pg||k==="home")return;const cards=[...pg.querySelectorAll(":scope > .card, :scope > .grid > .card, :scope > .grid > .stack > .card")].filter(c=>c.querySelector(".card-head h3"));
+    cards.forEach((c,i)=>{const h=c.querySelector(".card-head h3");const key=k+":"+(h.dataset.key||h.textContent.trim().replace(/\s+/g," ").replace(/D-\d+/,"D"));c.id=c.id||("sec-"+k+"-"+i);c.dataset.key=key;
+      if(!c.querySelector(".fold")){const b=document.createElement("button");b.className="fold";b.type="button";b.setAttribute("aria-label","접기·펼치기");b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>';
+        b.onclick=e=>{e.stopPropagation();const col=UI.collapsed||{};col[key]=!c.classList.contains("collapsed");UI.collapsed=col;saveUI();c.classList.toggle("collapsed",col[key]);};h.parentElement.appendChild(b);}
+      c.classList.toggle("collapsed",!!(UI.collapsed||{})[key]);});
+    if(cards.length>=4&&!pg.querySelector(".jump")){const j=document.createElement("div");j.className="jump chips";j.innerHTML=cards.map(c=>`<button data-jump="${c.id}">${esc(c.querySelector(".card-head h3").textContent.trim())}</button>`).join("");const head=pg.querySelector(".page-head");head.insertAdjacentElement("afterend",j);
+      j.querySelectorAll("[data-jump]").forEach(b=>b.onclick=()=>{const c=$("#"+b.dataset.jump);c.classList.remove("collapsed");const col=UI.collapsed||{};delete col[c.dataset.key];UI.collapsed=col;saveUI();c.scrollIntoView({behavior:"smooth",block:"start"});});}});}
 function renderPage(){const t=totals();({home:renderHome,assets:renderAssets,ledger:()=>renderLedger(),analytics:renderAnalytics,tax:renderTax,salary:renderSalary,grow:renderGrow,guide:()=>renderGuide()})[curPage](t);}
 let _rt=0;function renderAll(){renderPage();}
+setTimeout(setupSections,0);
 function renderSoon(){clearTimeout(_rt);_rt=setTimeout(renderPage,120);}
 
 /* ================= settings / data ================= */
