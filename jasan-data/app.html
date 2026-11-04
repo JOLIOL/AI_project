@@ -413,6 +413,9 @@ body.dense-ui main{padding-block:18px 36px}
               <div class="small" id="xpOut"></div></div>
           </div>
         </div>
+        <div class="card"><div class="card-head"><h3>연봉 · 성과급 · 퇴직금 계산기</h3><span class="xs muted">연봉 협상·이직 비교용</span></div>
+          <form class="fields" id="ssForm"><label class="field">새 연봉(원)<input id="ss-new" type="number" min="0" step="1000000"></label><label class="field">성과급(원)<input id="ss-bonus" type="number" min="0" step="1000000" value="5000000"></label><label class="field">근속 연수<input id="ss-years" type="number" min="0" max="45" value="5"></label></form>
+          <div id="ssOut"></div></div>
         <div class="card"><div class="card-head"><h3>투자 소득 세금</h3><span class="xs muted">이자·배당 15.4% · 해외주식 22% · ISA 9.9%</span></div><div id="invTax"></div>
           <div class="note">예상 이자·배당은 과세 계좌(ISA·연금·IRP·청년미래적금 제외) 자산의 금리·배당률로 추정해요. 해외주식 양도차익은 매수·매도일 환율로 원화 환산해 계산해요(거래 기록의 환율 사용).</div></div>
         <div class="card"><div class="card-head"><h3>절세 체크리스트</h3></div><div class="stack" id="taxChecks"></div></div>
@@ -703,7 +706,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.23.0";
+const APP_VERSION="3.24.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1830,7 +1833,16 @@ function yearEnd(t){const R=TAXR(),w=wageTax(0);const now=new Date();const end=n
 function renderYearEnd(t){const y=yearEnd(t);const m=new Date().getMonth();if(m<9){$("#yeOut").innerHTML="";$("#yeCard").hidden=true;return;}$("#yeCard").hidden=false;
   const tot=y.acts.reduce((s,a)=>s+a.gain,0);$("#yeTitle").textContent=`연말정산 D-${y.dleft}`;
   $("#yeOut").innerHTML=`<div class="note">12월 31일까지 실행하면 올해 세금이 줄어드는 항목이에요. 예상 절세 합계 <b class="pos">${short(tot)}원</b></div>`+y.acts.map(a=>`<div class="alert"><span class="dot" style="background:${a.gain?"var(--good)":"var(--info)"}"></span><span style="flex:1"><b>${a.t}</b>${a.amt?` · <span class="num">${short(a.amt)}원</span>`:""}${a.gain?` → <b class="num pos">약 ${short(a.gain)}원 절세</b>`:""}<br><span class="small ink2">${a.d}</span></span></div>`).join("");}
-function renderTax(t){renderProfileStrip();renderYearEnd(t);const R=TAXR(),tr=taxReport(t),w=tr.w;const comp={small:"중소기업",mid:"중견기업",large:"대기업",public:"공공기관"}[PROFILE.company]||"중견기업";
+function wageAt(g){const keep=PROFILE.salary;PROFILE.salary=g;const w=wageTax(0);PROFILE.salary=keep;return w;}
+function renderSalSim(){const g0=num(PROFILE.salary);if(!$("#ss-new").value)$("#ss-new").value=Math.round(g0*1.05/1e6)*1e6;const g1=num($("#ss-new").value),bonus=num($("#ss-bonus").value),yrs=num($("#ss-years").value);
+  const w0=wageAt(g0),w1=wageAt(g1),wb=wageAt(g0+bonus);const th=w=>(w.g-w.si.total-w.total)/12;const d=th(w1)-th(w0);const bonusNet=bonus-((wb.total-w0.total)+(wb.si.total-w0.si.total));
+  const sev=g0/12*yrs;
+  $("#ssOut").innerHTML=`<div class="split"><div class="tile"><div class="k">연봉 ${short(g0)} → ${short(g1)} (${g0?pct((g1-g0)/g0,1):""})</div><div class="v num ${sgn(d)}">월 ${d>=0?"+":""}${short(d)}원</div><div class="n">실수령 ${short(th(w0))} → ${short(th(w1))}원 · 인상분의 ${g1!==g0?pctp(d*12/(g1-g0),0):"–"}만 손에 남아요</div></div>
+   <div class="tile"><div class="k">세금·4대보험 증가 (연)</div><div class="v num">${short((w1.total-w0.total)+(w1.si.total-w0.si.total))}원</div><div class="n">세금 +${short(w1.total-w0.total)} · 4대보험 +${short(w1.si.total-w0.si.total)} · 한계세율 ${pctp(w1.marg*1.1,1)}</div></div>
+   <div class="tile"><div class="k">성과급 ${short(bonus)}원 세후</div><div class="v num pos">${bonus?short(bonusNet)+"원":"–"}</div><div class="n">${bonus?`실효 공제율 ${pctp(1-bonusNet/bonus,1)} · 지급 달 원천징수는 더 크고 연말정산에서 맞춰져요`:"성과급 금액을 입력하세요"}</div></div>
+   <div class="tile"><div class="k">퇴직금 예상 (${yrs}년 근속)</div><div class="v num">${short(sev)}원</div><div class="n">월평균 임금 × 근속연수 · 세전, DC형은 운용 성과에 따라 달라요</div></div></div>`;}
+$("#ssForm").addEventListener("input",()=>renderSalSim());$("#ssForm").addEventListener("submit",e=>e.preventDefault());
+function renderTax(t){renderProfileStrip();renderYearEnd(t);renderSalSim();const R=TAXR(),tr=taxReport(t),w=tr.w;const comp={small:"중소기업",mid:"중견기업",large:"대기업",public:"공공기관"}[PROFILE.company]||"중견기업";
   $("#taxSub").textContent=`${R.year}년 귀속 · ${comp} 근로자 · 총급여 ${short(w.g)}원 기준 추정치`;
   const w2=wageTax(extraPension);const gain=(w.total-w2.total);
   $("#taxKpis").innerHTML=kpi("예상 결정세액",short(w.total)+"원",`소득세 ${short(w.decided)} + 지방소득세 ${short(w.local)}`)+kpi("한계세율",pctp(w.marg,0),`지방세 포함 ${pctp(w.marg*1.1,1)} · 과세표준 ${short(w.base)}원`,"","추가 소득 1원당 붙는 세율. 소득공제 효과도 이 세율만큼 생겨요.")+
