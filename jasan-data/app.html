@@ -338,7 +338,7 @@ body.dense-ui main{padding-block:18px 36px}
         <div class="grid mk" id="hMarket"></div>
         <div class="grid g-2">
           <div class="card"><div class="card-head"><h3>이번 달 월급 배분</h3><a class="link small" href="#salary">자세히</a></div><div id="hSalary"></div></div>
-          <div class="card"><div class="card-head"><h3>알림</h3><span class="chip" id="hAlertCount"></span></div><div class="stack" id="hAlerts"></div></div>
+          <div class="card"><div class="card-head"><h3>할 일 · 알림</h3><span class="chip" id="hAlertCount"></span></div><div class="stack" id="hAlerts"></div></div>
         </div>
         <div class="card"><div class="card-head"><h3>목표</h3><a class="link small" href="#grow">관리</a></div><div id="hGoals"></div></div>
       </section>
@@ -706,7 +706,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.24.0";
+const APP_VERSION="3.25.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1598,6 +1598,12 @@ function alerts(t){const out=[];items.filter(x=>x.maturity).forEach(x=>{const d=
   (DATA.notices||[]).forEach(n=>out.push(["info",esc(n)]));advice(t).filter(a=>a[0]==="bad").forEach(a=>out.push(a));return out;}
 const dotColor={good:"var(--good)",warn:"var(--warn)",bad:"var(--bad)",info:"var(--info)"};
 const alertHtml=a=>`<div class="alert"><span class="dot" style="background:${dotColor[a[0]]}"></span><span>${a[1]}</span></div>`;
+const ALERT_ROUTES=[[/목표가|손절가|만기 D-|만기가 지난/,"detail","보기"],[/백업/,"settings","백업"],[/연말정산|연금저축|IRP|ISA|세금|금융소득/,"#tax","세금"],[/결산/,"#salary","결산"],[/현재가|시세/,"price","업데이트"],[/갱신|해지 기한|구독|보험료/,"#salary","확인"],[/비중|리밸런싱|부채비율|대출|상환|금리 7%/,"#analytics","분석"],[/월급날|비상금|생활비/,"#salary","월급"],[/모집|청년/,"#guide","가이드"]];
+const PRIO={bad:0,warn:1,good:2,info:3};
+function todoHtml(a,i){const txt=a[1].replace(/<[^>]+>/g,"");const r=ALERT_ROUTES.find(x=>x[0].test(txt));return `<div class="alert"><span class="dot" style="background:${dotColor[a[0]]}"></span><span style="flex:1">${a[1]}</span>${r?`<button class="btn sm ghost" data-todo="${i}">${r[2]}</button>`:""}</div>`;}
+function runTodo(a){const txt=a[1].replace(/<[^>]+>/g,"");const r=ALERT_ROUTES.find(x=>x[0].test(txt));if(!r)return;const act=r[1];
+  if(act==="detail"){const m=txt.match(/'([^']+)'/);const h=m&&items.find(x=>x.name===m[1]);if(h)openDetail(h.id);else location.hash="#assets";}
+  else if(act==="settings")$("[data-open-settings]").click();else if(act==="price"){location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),80);}else location.hash=act;}
 
 /* ================= charts ================= */
 function donutFrom(map,lab,col){const tot=Object.values(map).reduce((a,b)=>a+b,0);const ent=Object.entries(map).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
@@ -1651,7 +1657,8 @@ function renderHome(t){const h=new Date().getHours();$("#hello").textContent=h<1
      <div class="bar">${pl.rows.map(r=>`<span style="width:${r.amt/pl.surplus*100}%;background:var(${TYPES[r.type].c})" title="${esc(r.label)}"></span>`).join("")}</div>
      <div class="stack" style="gap:6px">${pl.rows.map(r=>`<div class="row between small"><span class="row" style="gap:8px"><i style="width:8px;height:8px;border-radius:2px;background:var(${TYPES[r.type].c})"></i>${esc(r.label)}</span><span class="num ${c.done[r.label]?"muted":""}">${won(r.amt)}원${c.done[r.label]?" ✓":""}</span></div>`).join("")}</div>
      <div class="row wrap" style="gap:6px"><span class="chip info">${VIEW_LABEL.rateTrend[mv.rateTrend]}</span><span class="chip ${mv.equity==="high"?"warn":""}">${VIEW_LABEL.equity[mv.equity]}</span></div>`;}
-  const al=alerts(t);$("#hAlertCount").textContent=al.length+"건";$("#hAlerts").innerHTML=al.length?al.slice(0,6).map(alertHtml).join(""):`<div class="note">새 알림이 없어요.</div>`;
+  const al=alerts(t).sort((a,b)=>PRIO[a[0]]-PRIO[b[0]]);$("#hAlertCount").textContent=al.length+"건";const show=UI.allAlerts?al:al.slice(0,6);$("#hAlerts").innerHTML=al.length?show.map(todoHtml).join("")+(al.length>6?`<button class="link small" id="moreAlerts">${UI.allAlerts?"접기":`${al.length-6}건 더 보기`}</button>`:""):`<div class="note">할 일이 없어요. 잘 관리하고 있어요.</div>`;
+  $$("[data-todo]").forEach(b=>b.onclick=()=>runTodo(show[+b.dataset.todo]));if($("#moreAlerts"))$("#moreAlerts").onclick=()=>{UI.allAlerts=!UI.allAlerts;saveUI();renderHome(totals());};
   $("#hGoals").innerHTML=goalsHtml(t,true);bindGoals();}
 $$("#histRange button").forEach(b=>b.onclick=()=>{UI.histR=num(b.dataset.r);saveUI();renderHome(totals());});
 $$("#donutBy button").forEach(b=>b.onclick=()=>{UI.donutBy=b.dataset.by;saveUI();renderHome(totals());});
