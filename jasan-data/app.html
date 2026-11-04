@@ -319,7 +319,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
             <div class="chart" id="hHistory"></div>
           </div>
           <div class="card">
-            <div class="card-head"><h3>자산 구성</h3><div class="seg" id="donutBy"><button data-by="type" aria-pressed="true">유형</button><button data-by="cls" aria-pressed="false">자산군</button><button data-by="acct" aria-pressed="false">계좌</button><button data-by="cur" aria-pressed="false">통화</button></div></div>
+            <div class="card-head"><h3>자산 구성</h3><div class="seg" id="donutBy"><button data-by="type" aria-pressed="true">유형</button><button data-by="cls" aria-pressed="false">자산군</button><button data-by="acct" aria-pressed="false">계좌</button><button data-by="cur" aria-pressed="false">통화</button><button data-by="owner" aria-pressed="false" id="donutOwnerBtn" hidden>소유자</button></div></div>
             <div class="donut-wrap" id="hDonut"></div>
           </div>
         </div>
@@ -340,10 +340,10 @@ body.locked .app,body.locked dialog{visibility:hidden}
         <div class="card">
           <div class="toolbar">
             <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="aSearch" placeholder="이름·티커 검색  ( / )" aria-label="자산 검색"></label>
-            <div class="chips" id="aAcct"></div>
+            <div class="chips" id="aOwner"></div><div class="chips" id="aAcct"></div>
             <label class="inline-check"><input type="checkbox" id="aGroup" checked>유형별 묶기</label><div class="seg" id="aView"><button data-v="table" aria-pressed="true">표</button><button data-v="list" aria-pressed="false">카드</button></div>
           </div>
-          <div id="aBody"></div>
+          <div id="aOwnerSum"></div><div id="aBody"></div>
         </div>
       </section>
 
@@ -510,6 +510,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
             <label class="field">나이<input id="s-age" type="number" min="15" max="90" inputmode="numeric"></label>
             <label class="field">월급날<input id="s-payday" type="number" min="1" max="31" inputmode="numeric"></label>
             <label class="field">회사 규모<select id="s-company"><option value="small">중소기업</option><option value="mid">중견기업</option><option value="large">대기업</option><option value="public">공공기관</option></select></label>
+            <label class="field">가족 구성원 (쉼표로 구분)<input id="s-members" placeholder="본인, 배우자"></label>
             <label class="field">부양가족 수 (본인 포함)<input id="s-dep" type="number" min="1" max="10" inputmode="numeric"></label>
             <label class="field">세대주 여부<select id="s-head"><option value="yes">세대주</option><option value="no">세대원</option></select></label>
             <label class="field">월 카드·현금영수증 사용(원)<input id="s-card" type="number" min="0" step="10000" inputmode="numeric"></label>
@@ -526,6 +527,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
     <div class="fields">
       <label class="field">유형<select id="f-type"></select></label>
       <label class="field">이름<input id="f-name" placeholder="예: 국민은행 급여통장, TIGER 미국S&amp;P500"></label>
+      <label class="field" id="f-owner-wrap" hidden>소유자<select id="f-owner"></select></label>
       <label class="field">계좌·금융사<input id="f-account" list="acctList" placeholder="예: ISA, 연금저축, 토스뱅크"></label>
       <label class="field">통화<select id="f-currency"><option value="KRW">원화 KRW</option><option value="USD">달러 USD</option><option value="JPY">엔화 JPY</option><option value="EUR">유로 EUR</option></select></label>
       <label class="field" id="f-avgfx-wrap" hidden><span id="f-avgfx-label">평균 매입 환율</span><input id="f-avgfx" type="number" min="0.01" step="0.01"></label>
@@ -683,7 +685,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.18.0";
+const APP_VERSION="3.19.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1186,6 +1188,7 @@ const GROUPS={cash:"현금·입출금",saving:"예적금·청약",invest:"투자
 const CLASSES={cash:{label:"현금성",c:"--c6"},fixed:{label:"예적금",c:"--c2"},bond:{label:"채권",c:"--c8"},equity:{label:"주식·펀드",c:"--c5"},pension:{label:"연금",c:"--c7"},alt:{label:"대체투자",c:"--c3"},realty:{label:"부동산·보증금",c:"--c4"}};
 const LEGACY={cash:"parking",stock:"kstock"};
 const isDebt=h=>(TYPES[h.type]||{}).mode==="debt";
+const members=()=>{const m=String(PROFILE.members||"본인").split(/[,，]/).map(x=>x.trim()).filter(Boolean);return m.length?m:["본인"];};const ownerOf=h=>h.owner||members()[0];
 const typeOpts=()=>Object.entries(GROUPS).map(([g,l])=>`<optgroup label="${l}">${Object.entries(TYPES).filter(([,v])=>v.grp===g).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join("")}</optgroup>`).join("");
 const ACCT_COLORS=["--c1","--c2","--c3","--c4","--c5","--c6","--c7","--c8"];
 const KIND={open:"보유 시작",buy:"매수",sell:"매도",deposit:"입금·납입",withdraw:"출금·해지",dividend:"배당",interest:"이자",fee:"수수료",repay:"대출 상환",borrow:"추가 대출"};
@@ -1223,10 +1226,10 @@ const clsOf=h=>(TYPES[h.type]||TYPES.other).cls;
 const ASSUM_MAP={checking:"cash",parking:"cash",cma:"cash",lease:"cash",realestate:"reit"};
 const assum=t=>{const T=TYPES[t]||TYPES.other;const A=DATA.assumptions||{};const a=A[t]||A[T.assum]||A[ASSUM_MAP[t]];return Array.isArray(a)?{r:num(a[0]),v:num(a[1])}:{r:T.rate,v:t==="lease"?0:10}};
 
-function totals(){const t={value:0,cost:0,monthly:0,debt:0,debtMonthly:0,debtInterest:0,byType:{},byCls:{},byAcct:{},byCur:{},byGrp:{}};
+function totals(){const t={value:0,cost:0,monthly:0,debt:0,debtMonthly:0,debtInterest:0,byType:{},byCls:{},byAcct:{},byCur:{},byGrp:{},byOwner:{}};
   items.forEach(h=>{const v=valKRW(h);if(isDebt(h)){t.debt+=v;t.debtMonthly+=num(h.monthly);t.debtInterest+=v*num(h.rate)/100;t.byType[h.type]=(t.byType[h.type]||0)+v;return;}t.byGrp[TYPES[h.type].grp]=(t.byGrp[TYPES[h.type].grp]||0)+v;t.value+=v;t.cost+=costKRW(h);t.monthly+=num(h.monthly)*fxRate(h.currency);
     t.byType[h.type]=(t.byType[h.type]||0)+v;t.byCls[clsOf(h)]=(t.byCls[clsOf(h)]||0)+v;
-    const a=h.account||"미지정";t.byAcct[a]=(t.byAcct[a]||0)+v;t.byCur[h.currency]=(t.byCur[h.currency]||0)+v;});
+    const a=h.account||"미지정";t.byAcct[a]=(t.byAcct[a]||0)+v;t.byCur[h.currency]=(t.byCur[h.currency]||0)+v;t.byOwner[ownerOf(h)]=(t.byOwner[ownerOf(h)]||0)+v;});
   t.gain=t.value-t.cost;t.net=t.value-t.debt;t.wRate=t.value?items.filter(h=>!isDebt(h)).reduce((s,h)=>s+valKRW(h)*num(h.rate),0)/t.value:0;return t;}
 
 /* ================= ledger engine ================= */
@@ -1336,7 +1339,7 @@ $("#f-type").addEventListener("change",()=>syncForm(!editingId));$("#f-useqty").
 function openHolding(id,presetType){editingId=id||null;const h=items.find(x=>x.id===id);const ty=h?.type||presetType||"kstock";
   $("#holdTitle").textContent=h?"자산 수정":"자산 추가";$("#holdDel").hidden=!h;
   const set=(i,v)=>$("#"+i).value=v??"";
-  set("f-type",ty);set("f-name",h?.name);set("f-account",h?.account);set("f-currency",h?.currency||"KRW");set("f-ticker",h?.ticker);
+  $("#f-owner").innerHTML=members().map(m=>`<option>${esc(m)}</option>`).join("");$("#f-owner-wrap").hidden=members().length<2;set("f-owner",h?ownerOf(h):members()[0]);set("f-type",ty);set("f-name",h?.name);set("f-account",h?.account);set("f-currency",h?.currency||"KRW");set("f-ticker",h?.ticker);
   set("f-qty",h&&num(h.qty)?h.qty:"");set("f-avg",h&&num(h.avg)?h.avg:"");set("f-price",h&&num(h.price)?h.price:"");set("f-div",h?.divYield||"");set("f-tgt",h?.tgtPrice||"");set("f-stop",h?.stopPrice||"");set("f-divfreq",h?.divFreq||DIV_DEFAULT[ty]||"q");
   set("f-avgfx",Math.round((h&&h.currency!=="KRW"&&num(h.avgFx)?num(h.avgFx):fxRate(h?.currency&&h.currency!=="KRW"?h.currency:(TYPES[ty].usd?"USD":"USD")))*100)/100);
   set("f-value",h&&!isSec(h)?h.value:"");set("f-principal",h&&!isSec(h)?h.principal:"");set("f-monthly",h?.monthly||"");set("f-rate",h?h.rate:"");set("f-maturity",h?.maturity);set("f-start",h?.start||today());
@@ -1346,7 +1349,7 @@ $("#holdForm").addEventListener("submit",e=>{e.preventDefault();
   const g=i=>$("#"+i).value;const type=g("f-type"),T=TYPES[type];const q=useQty();const qty=q?num(g("f-qty")):0,avg=num(g("f-avg")),price=num(g("f-price"));
   if(q&&!(qty>0)){toast("보유 수량을 입력하세요");return;}if(!q&&!(num(g("f-value"))>0)&&!(num(g("f-principal"))>0)){toast(T.mode==="debt"?"대출 잔액을 입력하세요":"금액을 입력하세요");return;}
   const prev=items.find(x=>x.id===editingId);const cur=g("f-currency");
-  const h={...(prev||{}),id:editingId||uid(),kind:"holding",type,name:g("f-name").trim()||T.label,account:g("f-account").trim(),currency:cur,ticker:g("f-ticker").trim(),
+  const h={...(prev||{}),id:editingId||uid(),kind:"holding",type,name:g("f-name").trim()||T.label,account:g("f-account").trim(),owner:g("f-owner")||members()[0],currency:cur,ticker:g("f-ticker").trim(),
     qty:q?qty:0,avg:q?(avg||price):0,price:q?(price||avg):0,divYield:num(g("f-div")),divFreq:g("f-divfreq"),tgtPrice:num(g("f-tgt"))||0,stopPrice:num(g("f-stop"))||0,
     value:q?0:num(g("f-value")),principal:q?0:(g("f-principal")===""?num(g("f-value")):num(g("f-principal"))),
     avgFx:cur!=="KRW"?(num(g("f-avgfx"))||fxRate(cur)):0,monthly:num(g("f-monthly")),rate:g("f-rate")===""?(["invest","pension"].includes(T.grp)?assum(type).r:T.rate):num(g("f-rate")),
@@ -1603,8 +1606,8 @@ function renderHome(t){const h=new Date().getHours();$("#hello").textContent=h<1
   const r=num(UI.histR);const hs=r?hist.filter(x=>days(x.d,today())<=r):hist;$$("#histRange button").forEach(b=>b.setAttribute("aria-pressed",String(num(b.dataset.r)===r)));
   $("#hHistory").innerHTML=hs.length>=2?lineChart([{pts:hs.map(x=>x.f??x.p),c:"--c7",dash:true},{pts:hs.map(x=>x.v),c:"--c1",area:true}].concat(hs.some(x=>x.n!=null&&x.n!==x.v)?[{pts:hs.map(x=>x.n??x.v),c:"--c2"}]:[]),{h:190,label:"자산 추이",tt:{labels:hs.map(x=>x.d),series:[{name:"자산",c:"--c1",pts:hs.map(x=>x.v)}].concat(hs.some(x=>x.n!=null&&x.n!==x.v)?[{name:"순자산",c:"--c2",pts:hs.map(x=>x.n??x.v)}]:[]).concat([{name:"순투입",c:"--c7",pts:hs.map(x=>x.f??x.p)}])},xlabels:[[0,hs[0].d.slice(2).replace(/-/g,".")],[hs.length-1,hs[hs.length-1].d.slice(2).replace(/-/g,".")]]})+`<div class="row small muted" style="gap:14px"><span class="row" style="gap:6px"><i style="width:14px;height:3px;background:var(--c1)"></i>자산</span>${hs.some(x=>x.n!=null&&x.n!==x.v)?'<span class="row" style="gap:6px"><i style="width:14px;height:3px;background:var(--c2)"></i>순자산</span>':""}<span class="row" style="gap:6px"><i style="width:14px;border-top:2px dashed var(--muted)"></i>순투입 원금</span></div>`
     :`<div class="note">앱을 열 때마다 총자산이 기록돼요. 이틀째부터 추이 그래프가 나타나요.</div>`;
-  const by=UI.donutBy;const exR=!UI.donutRealty;const flt=m=>exR?Object.fromEntries(Object.entries(m).filter(([k])=>!["realty","lease","realestate","real"].includes(k))):m;$$("#donutBy button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.by===by)));
-  $("#hDonut").innerHTML=(by==="cls"?donutFrom(flt(t.byCls),k=>CLASSES[k].label,k=>CLASSES[k].c):by==="acct"?donutFrom(exR?items.filter(h=>!isDebt(h)&&clsOf(h)!=="realty").reduce((m,h)=>{const a=h.account||"미지정";m[a]=(m[a]||0)+valKRW(h);return m;},{}):t.byAcct,k=>k,(k,i)=>ACCT_COLORS[i%8]):by==="cur"?donutFrom(t.byCur,k=>(CUR_NAME[k]||k)+" 자산",(k,i)=>["--c1","--c2","--c3","--c4"][i%4]):donutFrom(flt(Object.fromEntries(Object.entries(t.byType).filter(([k])=>TYPES[k]&&TYPES[k].mode!=="debt"))),k=>TYPES[k].label,k=>TYPES[k].c))+((t.byCls.realty||0)>0?`<label class="inline-check" style="width:100%"><input type="checkbox" id="donutRealty" ${UI.donutRealty?"checked":""}>부동산·보증금 포함 (${short(t.byCls.realty)}원)</label>`:"");
+  $("#donutOwnerBtn").hidden=members().length<2;if(members().length<2&&UI.donutBy==="owner")UI.donutBy="type";const by=UI.donutBy;const exR=!UI.donutRealty;const flt=m=>exR?Object.fromEntries(Object.entries(m).filter(([k])=>!["realty","lease","realestate","real"].includes(k))):m;$$("#donutBy button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.by===by)));
+  $("#hDonut").innerHTML=(by==="cls"?donutFrom(flt(t.byCls),k=>CLASSES[k].label,k=>CLASSES[k].c):by==="acct"?donutFrom(exR?items.filter(h=>!isDebt(h)&&clsOf(h)!=="realty").reduce((m,h)=>{const a=h.account||"미지정";m[a]=(m[a]||0)+valKRW(h);return m;},{}):t.byAcct,k=>k,(k,i)=>ACCT_COLORS[i%8]):by==="owner"?donutFrom(t.byOwner,k=>k,(k,i)=>ACCT_COLORS[i%8]):by==="cur"?donutFrom(t.byCur,k=>(CUR_NAME[k]||k)+" 자산",(k,i)=>["--c1","--c2","--c3","--c4"][i%4]):donutFrom(flt(Object.fromEntries(Object.entries(t.byType).filter(([k])=>TYPES[k]&&TYPES[k].mode!=="debt"))),k=>TYPES[k].label,k=>TYPES[k].c))+((t.byCls.realty||0)>0?`<label class="inline-check" style="width:100%"><input type="checkbox" id="donutRealty" ${UI.donutRealty?"checked":""}>부동산·보증금 포함 (${short(t.byCls.realty)}원)</label>`:"");
   if($("#donutRealty"))$("#donutRealty").onchange=()=>{UI.donutRealty=$("#donutRealty").checked;saveUI();renderHome(totals());};
   $$("[data-add2]").forEach(b=>b.onclick=()=>openHolding());
   $("#hMarket").innerHTML=marketTiles();
@@ -1636,6 +1639,7 @@ function renderAssets(t){$$("#aView button").forEach(b=>b.setAttribute("aria-pre
     kpi("평가손익",(t.gain>=0?"+":"")+short(t.gain)+"원",t.cost?`원금 ${short(t.cost)} 대비 ${pct(t.gain/t.cost)}`:"",sgn(t.gain))+
     kpi("부채",t.debt?short(t.debt)+"원":"없음",t.debt?`연 이자 약 ${short(t.debtInterest)} · 월 상환 ${short(t.debtMonthly)}`:"대출을 추가하면 순자산에 반영돼요",t.debt?"neg":"")+
     kpi("기대수익률 · 변동성",mr?`${pctp(mr.mu)} · ${pctp(mr.sig)}`:"–","자산군 가정치 가중 (연)","","보유 비중 × 자산군별 장기 기대수익률·변동성. 가이드 화면에서 가정치를 확인할 수 있어요.");
+  const mem=members();if(mem.length>1){if(!["전체",...mem].includes(UI.owner))UI.owner="전체";$("#aOwner").innerHTML=["전체",...mem].map(o=>`<button data-own="${esc(o)}" aria-pressed="${o===UI.owner}">${o==="전체"?"가족 전체":esc(o)}</button>`).join("");$$("[data-own]").forEach(b=>b.onclick=()=>{UI.owner=b.dataset.own;saveUI();renderAssets(totals());});}else{$("#aOwner").innerHTML="";UI.owner="전체";}
   const accts=["전체",...Array.from(new Set(items.map(h=>h.account||"미지정")))];if(!accts.includes(UI.acct))UI.acct="전체";
   $("#aAcct").innerHTML=accts.map(a=>`<button data-acct="${esc(a)}" aria-pressed="${a===UI.acct}">${esc(a)}</button>`).join("");
   $$("[data-acct]").forEach(b=>b.onclick=()=>{UI.acct=b.dataset.acct;saveUI();renderAssets(totals());});
@@ -1644,10 +1648,11 @@ function renderAssets(t){$$("#aView button").forEach(b=>b.setAttribute("aria-pre
   if(!items.length){$("#aBody").innerHTML=`<div class="empty">아직 등록한 자산이 없어요. 위 버튼으로 월급통장부터 하나씩 추가해 보세요.<div class="row"><button class="btn sm" data-add3>자산 추가</button><button class="btn sm ghost" data-example>예시로 둘러보기</button></div></div>`;
     $$("[data-add3]").forEach(b=>b.onclick=()=>openHolding(null,"checking"));$$("[data-example]").forEach(b=>b.onclick=loadExample);return;}
   const q=$("#aSearch").value.trim().toLowerCase();const gOrder=Object.keys(GROUPS),tOrder=Object.keys(TYPES);
-  let rows=items.filter(h=>(UI.acct==="전체"||(h.account||"미지정")===UI.acct)&&(!q||(h.name+" "+(h.ticker||"")+" "+(h.account||"")+" "+TYPES[h.type].label).toLowerCase().includes(q))).map(h=>{const v=valKRW(h),c=costKRW(h),debt=isDebt(h);
+  let rows=items.filter(h=>(UI.owner==="전체"||!UI.owner||ownerOf(h)===UI.owner)&&(UI.acct==="전체"||(h.account||"미지정")===UI.acct)&&(!q||(h.name+" "+(h.ticker||"")+" "+(h.account||"")+" "+TYPES[h.type].label).toLowerCase().includes(q))).map(h=>{const v=valKRW(h),c=costKRW(h),debt=isDebt(h);
     return {h,debt,krw:v,cost:c,gain:debt?0:v-c,ret:debt||!c?0:(v-c)/c,w:debt?(t.value?v/t.value:0):(t.value?v/t.value:0),name:h.name,type:tOrder.indexOf(h.type),grp:gOrder.indexOf(TYPES[h.type].grp),acct:h.account||"",rate:num(h.rate),fxg:fxGainKRW(h),mat:maturityEst(h)}});
   const k=UI.sortK,d=UI.sortD;rows.sort((a,b)=>{if(UI.grouped&&a.grp!==b.grp)return a.grp-b.grp;const x=a[k],y=b[k];return (typeof x==="string"?x.localeCompare(y,"ko"):x-y)*d;});
   const meta=r=>{const h=r.h;const md=h.maturity?Math.ceil(days(today(),h.maturity)):null;return [esc(h.account||"계좌 미지정"),TYPES[h.type].label,isSec(h)?`${num(h.qty).toLocaleString("ko-KR",{maximumFractionDigits:6})}${h.type==="crypto"?"개":"주"}`:"",h.monthly?`${r.debt?"월 상환":"월"} ${short(h.monthly)}${h.autopay?" (자동)":""}`:"",md!=null&&md>=0?`만기 D-${md}`:"",r.mat?`만기 예상 ${short(r.mat.amt)} (세후)`:"",r.debt?`금리 ${num(h.rate).toFixed(2)}%`:""].filter(Boolean).join(" · ");};
+  if(UI.owner&&UI.owner!=="전체"){const a=rows.filter(r=>!r.debt).reduce((s,r)=>s+r.krw,0),d=rows.filter(r=>r.debt).reduce((s,r)=>s+r.krw,0);$("#aOwnerSum").innerHTML=`<span class="chip accent">${esc(UI.owner)} · 자산 ${short(a)}원${d?` · 부채 ${short(d)}원 · 순자산 ${short(a-d)}원`:""}</span>`;}else $("#aOwnerSum").innerHTML="";
   if(viewMode()==="list"){let lastG=-1;$("#aBody").innerHTML=`<div class="list">${rows.map(r=>{const h=r.h;let head="";if(UI.grouped&&r.grp!==lastG){lastG=r.grp;const g=gOrder[r.grp];const sub=rows.filter(x=>x.grp===r.grp).reduce((s,x)=>s+x.krw,0);head=`<div class="row between" style="padding:14px 4px 4px"><span class="sec-title" style="margin:0">${GROUPS[g]}</span><span class="small num ${g==="debt"?"neg":""}">${g==="debt"?"−":""}${short(sub)}원</span></div>`;}
       return head+`<button class="item" data-edit="${esc(h.id)}">${avatar(h.type)}<div class="main"><div class="name">${esc(h.name)}</div><div class="meta">${meta(r)}</div></div>
       <div class="right"><div class="val num ${r.debt?"neg":""}">${r.debt?"−":""}${won(r.krw)}원</div>${r.debt?`<div class="xs muted">원금 ${short(num(h.principal))}</div>`:`<div class="xs num ${sgn(r.gain)}">${r.gain>=0?"+":""}${short(r.gain)} (${pct(r.ret)})</div>`}</div></button>`}).join("")}</div>`;}
@@ -1655,7 +1660,7 @@ function renderAssets(t){$$("#aView button").forEach(b=>b.setAttribute("aria-pre
     const fmtN=(v,dd)=>num(v).toLocaleString("ko-KR",{maximumFractionDigits:dd});let lastG=-1;const assetRows=rows.filter(r=>!r.debt);const sum=assetRows.reduce((s,r)=>({krw:s.krw+r.krw,cost:s.cost+r.cost}),{krw:0,cost:0});
     const body=rows.map(r=>{const h=r.h;let head="";if(UI.grouped&&r.grp!==lastG){lastG=r.grp;const g=gOrder[r.grp];const grs=rows.filter(x=>x.grp===r.grp);const sv=grs.reduce((s,x)=>s+x.krw,0),sc=grs.reduce((s,x)=>s+x.cost,0);
         head=`<tr class="grp" style="cursor:default"><td class="sticky-col" colspan="3"><b>${GROUPS[g]}</b> <span class="xs muted">${grs.length}개</span></td><td></td><td></td><td></td><td class="r num muted">${g==="debt"?"":won(sc)}</td><td class="r num"><b class="${g==="debt"?"neg":""}">${g==="debt"?"−":""}${won(sv)}</b></td><td class="r num ${g==="debt"?"":sgn(sv-sc)}">${g==="debt"?"":(sv-sc>=0?"+":"")+won(sv-sc)}</td><td></td><td></td><td class="r num">${t.value?pctp(sv/t.value):""}</td><td></td></tr>`;}
-      return head+`<tr data-edit="${esc(h.id)}"><td class="sticky-col"><b>${esc(h.name)}</b>${h.ticker?` <span class="xs muted">${esc(h.ticker)}</span>`:""}${h.currency!=="KRW"?` <span class="pill">${h.currency}</span>`:""}${h.autopay?' <span class="pill dividend">자동</span>':""}${r.mat?`<div class="xs muted">만기 예상 ${short(r.mat.amt)} (세후)</div>`:""}</td><td>${esc(h.account||"–")}</td><td><span class="badge-dot" style="background:var(${TYPES[h.type]?.c})"></span>${TYPES[h.type]?.label||""}</td>
+      return head+`<tr data-edit="${esc(h.id)}"><td class="sticky-col"><b>${esc(h.name)}</b>${h.ticker?` <span class="xs muted">${esc(h.ticker)}</span>`:""}${h.currency!=="KRW"?` <span class="pill">${h.currency}</span>`:""}${h.autopay?' <span class="pill dividend">자동</span>':""}${members().length>1?` <span class="pill">${esc(ownerOf(h))}</span>`:""}${r.mat?`<div class="xs muted">만기 예상 ${short(r.mat.amt)} (세후)</div>`:""}</td><td>${esc(h.account||"–")}</td><td><span class="badge-dot" style="background:var(${TYPES[h.type]?.c})"></span>${TYPES[h.type]?.label||""}</td>
         <td class="r num">${isSec(h)?fmtN(h.qty,6):"–"}</td><td class="r num">${isSec(h)?fmtN(h.avg,2):"–"}</td><td class="r num">${isSec(h)?fmtN(h.price,2):"–"}</td>
         <td class="r num">${won(r.cost)}</td><td class="r num"><b class="${r.debt?"neg":""}">${r.debt?"−":""}${won(r.krw)}</b></td><td class="r num ${r.debt?"":sgn(r.gain)}">${r.debt?"–":(r.gain>=0?"+":"")+won(r.gain)}</td><td class="r num ${r.debt?"":sgn(r.ret)}">${r.debt?"–":pct(r.ret,2)}</td>
         <td class="r num ${r.fxg?sgn(r.fxg):"muted"}">${r.fxg?(r.fxg>=0?"+":"")+short(r.fxg):"–"}</td><td class="r num">${pctp(r.w)}</td><td class="r num">${num(h.rate).toFixed(1)}</td></tr>`}).join("");
@@ -1968,9 +1973,9 @@ function renderProfileStrip(){const comp={small:"중소기업",mid:"중견기업
   $$(".profile-strip").forEach(el=>{el.innerHTML=html;});$$("[data-open-profile2]").forEach(b=>b.onclick=()=>openProfile());}
 
 /* ---- salary ---- */
-const SAL_FIELDS={incomeMode:"s-incmode",income:"s-income",expense:"s-expense",salary:"s-salary",age:"s-age",payday:"s-payday",risk:"s-risk",house:"s-house",goal:"s-goal",company:"s-company",dependents:"s-dep",head:"s-head",card:"s-card",debitPct:"s-debit"};
+const SAL_FIELDS={incomeMode:"s-incmode",income:"s-income",expense:"s-expense",salary:"s-salary",age:"s-age",payday:"s-payday",risk:"s-risk",house:"s-house",goal:"s-goal",company:"s-company",dependents:"s-dep",head:"s-head",card:"s-card",debitPct:"s-debit",members:"s-members"};
 const fillSal=()=>{Object.entries(SAL_FIELDS).forEach(([k,id])=>{$("#"+id).value=PROFILE[k]??"";});const auto=PROFILE.incomeMode!=="manual";$("#s-income").disabled=auto;if(auto)$("#s-income").value=incomeOf();$("#s-income-hint").textContent=auto?"연봉에서 4대보험·세금을 빼고 자동 계산":"직접 입력한 값 사용";};
-$("#salForm").addEventListener("input",()=>{Object.entries(SAL_FIELDS).forEach(([k,id])=>{const v=$("#"+id).value;if(k==="income"&&PROFILE.incomeMode!=="manual")return;PROFILE[k]=["risk","house","goal","company","head","incomeMode"].includes(k)?v:num(v);});LS.set(K.profile,PROFILE);mcTouched=false;const auto=PROFILE.incomeMode!=="manual";$("#s-income").disabled=auto;if(auto)$("#s-income").value=incomeOf();$("#s-income-hint").textContent=auto?"연봉에서 4대보험·세금을 빼고 자동 계산":"직접 입력한 값 사용";renderSoon();});
+$("#salForm").addEventListener("input",()=>{Object.entries(SAL_FIELDS).forEach(([k,id])=>{const v=$("#"+id).value;if(k==="income"&&PROFILE.incomeMode!=="manual")return;PROFILE[k]=["risk","house","goal","company","head","incomeMode","members"].includes(k)?v:num(v);});LS.set(K.profile,PROFILE);mcTouched=false;const auto=PROFILE.incomeMode!=="manual";$("#s-income").disabled=auto;if(auto)$("#s-income").value=incomeOf();$("#s-income-hint").textContent=auto?"연봉에서 4대보험·세금을 빼고 자동 계산":"직접 입력한 값 사용";renderSoon();});
 $("#salForm").addEventListener("submit",e=>e.preventDefault());
 $("#checkLog").checked=!!UI.checkLog;$("#checkLog").onchange=()=>{UI.checkLog=$("#checkLog").checked;saveUI();};
 function renderSalary(t){renderProfileStrip();renderFlow();renderFixed();if(!$("#fl-month").value)fillFlowForm();const mv=mview();$("#sSub").textContent=`실수령액 ${short(incomeOf())}원 기준 · 시장 판단은 매주 자동 갱신`;$("#viewDate").textContent=`${DATA.updatedAt} 기준`;
@@ -2043,7 +2048,7 @@ function applyBackup(v){snapUndo();{
   if(Array.isArray(v))items=v;else{if(!Array.isArray(v.holdings))throw 0;items=v.holdings;txs=Array.isArray(v.transactions)?v.transactions:[];goals=Array.isArray(v.goals)?v.goals:goals;if(v.profile)PROFILE={...DEFAULT_PROFILE,...v.profile};if(Array.isArray(v.history))hist=v.history;if(v.targets)LS.set(K.targets,v.targets);if(Array.isArray(v.flows)){flows=v.flows;LS.set(K.flow,flows);}if(Array.isArray(v.fixeds)){fixeds=v.fixeds;LS.set("jasan-fixed",fixeds);}if(v.homebuy){HB={...HB_DEF,...v.homebuy};LS.set(HB_KEY,HB);}if(v.retire){RET={...retDefaults(),...v.retire};LS.set(RET_KEY,RET);}}
   items=items.map(h=>{const x={currency:"KRW",account:"",start:today(),...h};if(LEGACY[x.type])x.type=x.type==="stock"&&x.currency==="USD"?"ostock":LEGACY[x.type];if(!TYPES[x.type])x.type="other";return x;});ensureOpenTx();LS.set(K.goals,goals);LS.set(K.profile,PROFILE);LS.set(K.hist,hist);persist();fillSal();renderAll();}}
 const csvCell=v=>{const s=String(v??"");return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
-const HCOLS=[["유형",h=>TYPES[h.type]?.label||h.type],["상품명",h=>h.name],["계좌",h=>h.account],["통화",h=>h.currency],["티커",h=>h.ticker],["수량",h=>num(h.qty)||""],["평균단가",h=>num(h.avg)||""],["현재가",h=>num(h.price)||""],["평가액",h=>isSec(h)?"":num(h.value)],["원금",h=>isSec(h)?"":num(h.principal)],["월납입",h=>num(h.monthly)||""],["기대수익률",h=>num(h.rate)],["배당률",h=>num(h.divYield)||""],["만기일",h=>h.maturity||""],["시작일",h=>h.start||""],["평가액(원)",h=>Math.round(valKRW(h))],["손익(원)",h=>Math.round(valKRW(h)-costKRW(h))]];
+const HCOLS=[["유형",h=>TYPES[h.type]?.label||h.type],["상품명",h=>h.name],["계좌",h=>h.account],["소유자",h=>ownerOf(h)],["통화",h=>h.currency],["티커",h=>h.ticker],["수량",h=>num(h.qty)||""],["평균단가",h=>num(h.avg)||""],["현재가",h=>num(h.price)||""],["평가액",h=>isSec(h)?"":num(h.value)],["원금",h=>isSec(h)?"":num(h.principal)],["월납입",h=>num(h.monthly)||""],["기대수익률",h=>num(h.rate)],["배당률",h=>num(h.divYield)||""],["만기일",h=>h.maturity||""],["시작일",h=>h.start||""],["평가액(원)",h=>Math.round(valKRW(h))],["손익(원)",h=>Math.round(valKRW(h)-costKRW(h))]];
 $("#csvHold").onclick=()=>{download("jasan-holdings-"+today()+".csv","﻿"+[HCOLS.map(c=>c[0]).join(","),...items.map(h=>HCOLS.map(c=>csvCell(c[1](h))).join(","))].join("\r\n"),"text/csv");toast("CSV를 저장했어요");};
 $("#csvTx").onclick=()=>{const cols=["날짜","종류","자산","통화","수량","단가","금액","수수료","세금","실현손익","메모"];download("jasan-transactions-"+today()+".csv","﻿"+[cols.join(","),...txs.map(t=>[t.date,KIND[t.kind]||t.kind,items.find(h=>h.id===t.hid)?.name||t.hname,t.cur,num(t.qty)||"",num(t.price)||"",num(t.amount),num(t.fee),num(t.tax),t.realized!=null?Math.round(t.realized):"",t.memo].map(csvCell).join(","))].join("\r\n"),"text/csv");toast("CSV를 저장했어요");};
 function parseCSV(text){const rows=[];let row=[],cell="",q=false;text=text.replace(/^﻿/,"");for(let i=0;i<text.length;i++){const c=text[i];
