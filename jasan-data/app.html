@@ -394,6 +394,18 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
       <!-- GROW -->
       <section class="page" id="p-grow" hidden>
         <div class="page-head"><div><h1>목표 · 시뮬레이션</h1><div class="sub">목표 달성 확률을 몬테카를로 방식으로 계산해요.</div></div><button class="btn" id="addGoal">＋ 목표 추가</button></div>
+        <div class="card"><div class="card-head"><h3>노후 준비 계산기</h3><span class="xs muted">국민연금 + 퇴직연금 + 개인연금</span></div>
+          <form class="fields" id="retForm">
+            <label class="field">은퇴 나이<input id="r-age" type="number" min="40" max="80"></label>
+            <label class="field">기대 수명<input id="r-life" type="number" min="60" max="110"></label>
+            <label class="field">은퇴 후 월 생활비 (현재가치)<input id="r-spend" type="number" min="0" step="100000"></label>
+            <label class="field">국민연금 예상 월액 (현재가치)<input id="r-nps" type="number" min="0" step="10000"></label>
+            <label class="field">국민연금 수령 나이<input id="r-npsage" type="number" min="60" max="70"></label>
+            <label class="field">물가상승률 (%)<input id="r-inf" type="number" min="0" step="0.1"></label>
+            <label class="field">은퇴 후 운용수익률 (%)<input id="r-post" type="number" min="0" step="0.1"></label>
+          </form>
+          <label class="inline-check"><input type="checkbox" id="r-all" form="retForm">연금 계좌뿐 아니라 전체 투자자산을 노후자금으로 계산</label>
+          <div class="stack" id="retOut"></div></div>
         <div class="card"><div class="card-head"><h3>배당·이자 수령 캘린더</h3><span class="xs muted">향후 12개월 · 세후 추정</span></div><div class="stack" id="calOut"></div></div>
         <div class="card"><div class="card-head"><h3>경제적 자유 지표</h3><span class="xs muted">자산소득으로 생활비를 얼마나 충당하나</span></div><div class="stack" id="fireOut"></div></div>
         <div class="card"><div class="card-head"><h3>내 목표</h3></div><div id="gGoals"></div></div>
@@ -589,7 +601,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.8.1";
+const APP_VERSION="3.9.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1757,6 +1769,28 @@ function renderCalendar(t){const mons=incomeCalendar(t);const tot=mons.reduce((s
     <div class="stack" style="gap:4px">${mons.filter(m=>m.list.length).slice(0,6).map(m=>`<div class="row between small"><span class="muted">${m.key}</span><span style="text-align:right">${m.list.slice(0,3).map(esc).join(" · ")}${m.list.length>3?` 외 ${m.list.length-3}건`:""}</span></div>`).join("")}</div>
     <div class="note">배당 지급 월은 자산 수정 화면의 '배당 주기'로 바꿀 수 있어요. 기본값: 국내주식 연 1회(4월), 해외주식·ETF 분기, 리츠 반기. 적금·청약 이자는 만기에 함께 받는 것으로 계산해요.</div>`;}
 
+/* ---- retirement planner ---- */
+const RET_KEY="jasan-retire";
+function retDefaults(){const g=num(PROFILE.salary);return {retAge:60,life:90,spend:Math.round(Math.max(1500000,num(PROFILE.expense)*0.9)/100000)*100000,nps:Math.round(Math.min(1800000,g/12*0.27)/10000)*10000,npsAge:65,inf:2.5,post:3.5,all:false};}
+let RET={...retDefaults(),...LS.get(RET_KEY,{})};
+const RET_F={retAge:"r-age",life:"r-life",spend:"r-spend",nps:"r-nps",npsAge:"r-npsage",inf:"r-inf",post:"r-post"};
+function fillRet(){Object.entries(RET_F).forEach(([k,id])=>$("#"+id).value=RET[k]);$("#r-all").checked=!!RET.all;}
+$("#retForm").addEventListener("input",()=>{Object.entries(RET_F).forEach(([k,id])=>RET[k]=num($("#"+id).value));RET.all=$("#r-all").checked;LS.set(RET_KEY,RET);clearTimeout(renderRetire.t);renderRetire.t=setTimeout(()=>renderRetire(totals()),120);});
+$("#retForm").addEventListener("submit",e=>e.preventDefault());
+$("#r-all").addEventListener("change",()=>{RET.all=$("#r-all").checked;LS.set(RET_KEY,RET);renderRetire(totals());});
+function renderRetire(t){if(!$("#r-age").value)fillRet();const age=Math.max(18,num(PROFILE.age)||30),R=Math.max(age+1,num(RET.retAge)),L=Math.max(R+1,num(RET.life)),inf=num(RET.inf)/100,post=num(RET.post)/100;
+  const penH=items.filter(h=>["pension","irp","retire"].includes(h.type));const cur=RET.all?Math.max(0,investable(t)-items.filter(h=>isDebt(h)&&!["mortgage","jeonseloan"].includes(h.type)).reduce((s,h)=>s+valKRW(h),0)):penH.reduce((s,h)=>s+valKRW(h),0);
+  const monthly=RET.all?(()=>{const pl=salaryPlan(PP(),t);return pl.err?0:pl.surplus;})():penH.reduce((s,h)=>s+num(h.monthly),0)+(penH.some(h=>h.type==="retire")?0:num(PROFILE.salary)/12/12);
+  const mu=RET.all?(modelRisk(t)?.mu||.045):.045;const yrs=R-age;
+  let v=cur;for(let i=0;i<yrs*12;i++)v=v*(1+mu/12)+monthly;const corpusNom=v;const corpusReal=v/Math.pow(1+inf,yrs);
+  const rr=(1+post)/(1+inf)-1;const path=[];let bal=corpusReal,dep=null;for(let a=R;a<=L;a++){path.push(Math.max(0,bal));const need=(num(RET.spend)-(a>=num(RET.npsAge)?num(RET.nps):0))*12;bal=bal*(1+rr)-need;if(bal<0&&dep==null)dep=a+1;}
+  let needReal=0;for(let a=R;a<L;a++){needReal+=(num(RET.spend)-(a>=num(RET.npsAge)?num(RET.nps):0))*12/Math.pow(1+rr,a-R);}
+  const gapReal=Math.max(0,needReal-corpusReal),gapNom=gapReal*Math.pow(1+inf,yrs);const k=mu/12,n=yrs*12;const extra=gapNom>0?gapNom/((Math.pow(1+k,n)-1)/k):0;
+  const okPct=needReal?Math.min(1,corpusReal/needReal):1;
+  $("#retOut").innerHTML=`<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">${kpi(`${R}세 예상 노후자금`,short(corpusReal)+"원",`현재가치 · 명목 ${short(corpusNom)}원`)}${kpi("필요 노후자금",short(needReal)+"원",`${R}~${L}세 · 국민연금 ${num(RET.npsAge)}세부터 반영`)}${kpi("준비율",pctp(okPct,0),dep?`${dep}세에 자금 소진 예상`:`${L}세까지 유지돼요`,okPct>=1?"pos":okPct<.6?"neg":"")}${kpi("부족분 메우려면",extra?`월 ${short(extra)}원 더`:"추가 저축 불필요",extra?`지금부터 ${yrs}년간 · 연 ${pctp(mu,1)} 운용 가정`:"",extra?"neg":"pos")}</div>
+   <div class="chart">${lineChart([{pts:path,c:"--c1",area:true}],{h:220,zero:true,label:"은퇴 후 자금 추이",xlabels:path.map((_,i)=>[i,(R+i)+"세"]).filter((_,i)=>i%Math.max(1,Math.round(path.length/6))===0||i===path.length-1),tt:{labels:path.map((_,i)=>(R+i)+"세"),series:[{name:"남은 자금(현재가치)",c:"--c1",pts:path}]}})}</div>
+   <div class="note">${RET.all?"전체 투자자산과 월급 배분 저축액":"연금저축·IRP·퇴직연금 잔액과 월 납입액(퇴직연금 미등록 시 연봉의 1/12을 퇴직금 적립으로 가정)"}으로 계산했어요. 모든 금액은 물가 ${num(RET.inf)}%를 뺀 현재가치예요. 국민연금 예상액은 국민연금공단 '내 연금 알아보기'에서 확인한 금액으로 바꾸면 더 정확해요.</div>`;}
+
 /* ---- onboarding checklist ---- */
 function renderOnboard(t){if(LS.get(K.onb,false)){$("#onboard").innerHTML="";return;}const steps=[["연봉 입력",LS.get(K.profile,null)!==null,()=>openProfile()],["월급통장 추가",items.some(h=>h.type==="checking"),()=>openHolding(null,"checking")],["투자·연금 1개 이상",items.some(h=>["invest","pension"].includes(TYPES[h.type].grp)),()=>openHolding(null,"ketf")],["목표 만들기",goals.length>0,()=>openGoal()],["첫 백업",!!LS.get(K.lastBackup,0),()=>{$("#setDlg").showModal();}]];
   const done=steps.filter(s=>s[1]).length;if(done===steps.length){$("#onboard").innerHTML="";return;}
@@ -1803,7 +1837,7 @@ function renderMC(){const s=num($("#mc-start").value),m=num($("#mc-monthly").val
     (goal?kpi("목표 달성 확률",pctp(prob,0),`목표 ${short(goal)}원 · 원금 손실 확률 ${pctp(loss,0)}`,prob>=.7?"pos":prob<.4?"neg":""):kpi("원금 손실 확률",pctp(loss,0),`${Y}년 뒤 넣은 돈보다 적을 확률`));
   const step=Y<=10?1:Y<=20?2:5;const xl=[];for(let i=0;i<=Y;i+=step)xl.push([i,i+"년"]);
   $("#mcChart").innerHTML=lineChart([{pts:Array.from({length:Y+1},(_,i)=>s+m*12*i),dash:true},{pts:P[.5],c:"--c1"}],{h:280,zero:true,goal,extra:[P[.9][Y]],xlabels:xl,label:"몬테카를로 분포",tt:{labels:Array.from({length:Y+1},(_,i)=>i+"년 뒤"),series:[{name:"상위 10%",c:"--c1",pts:P[.9]},{name:"중앙값",c:"--c1",pts:P[.5]},{name:"하위 10%",c:"--c5",pts:P[.1]},{name:"넣은 돈",c:"--c7",pts:Array.from({length:Y+1},(_,i)=>s+m*12*i)}]},bands:[{hi:P[.9],lo:P[.1],c:"--c1",o:.13},{hi:P[.75],lo:P[.25],c:"--c1",o:.22}]});}
-function renderGrow(t){renderFire(t);renderCalendar(t);$("#gGoals").innerHTML=goalsHtml(t,false);bindGoals();$("#gAdvice").innerHTML=advice(t).map(alertHtml).join("");
+function renderGrow(t){renderFire(t);renderCalendar(t);renderRetire(t);$("#gGoals").innerHTML=goalsHtml(t,false);bindGoals();$("#gAdvice").innerHTML=advice(t).map(alertHtml).join("");
   if(!mcTouched){const pl=salaryPlan(PP(),t),mr=modelRisk(t);$("#mc-start").value=Math.round(investable(t));$("#mc-monthly").value=pl.err?0:pl.surplus;
     const g=goals[0];$("#mc-goal").value=g?g.target:300000000;if(g){const yy=Math.max(1,Math.round(days(today(),g.date)/365));$("#mc-years").value=yy;}
     $("#mc-mu").value=mr?(mr.mu*100).toFixed(1):5;$("#mc-sigma").value=mr?(mr.sig*100).toFixed(1):10;}
