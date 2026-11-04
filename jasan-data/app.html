@@ -348,6 +348,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
       <section class="page" id="p-tax" hidden>
         <div class="page-head"><div><h1>세금 · 연말정산</h1><div class="sub" id="taxSub"></div></div><button class="btn ghost" data-open-profile>연봉 · 내 정보 수정</button></div>
         <div class="profile-strip"></div>
+        <div class="card" id="yeCard" hidden><div class="card-head"><h3 id="yeTitle">연말정산</h3><span class="xs muted">올해 남은 절세 기회</span></div><div class="stack" id="yeOut"></div></div>
         <div class="kpis" id="taxKpis"></div>
         <div class="grid g-hero">
           <div class="card"><div class="card-head"><h3>근로소득세 계산 (연말정산 미리보기)</h3><span class="xs muted">대한민국 소득세법 기준</span></div><div id="wageTbl"></div>
@@ -376,9 +377,10 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
             <label class="field">실제 수입(원)<input id="fl-income" type="number" min="0" step="10000" inputmode="numeric"></label>
             <label class="field">실제 지출(원)<input id="fl-expense" type="number" min="0" step="10000" inputmode="numeric"></label>
             <label class="field">메모<input id="fl-memo" placeholder="예: 보너스, 경조사"></label>
+            <details style="grid-column:1/-1"><summary class="small" style="cursor:pointer;color:var(--accent);font-weight:600">카테고리별로 입력하기 (선택 · 합계가 실제 지출에 자동 반영)</summary><div class="fields" id="flowCats" style="margin-top:10px"></div></details>
             <label class="field" style="justify-content:flex-end"><button class="btn" type="submit">결산 저장</button></label>
           </form>
-          <div id="flowKpis"></div><div class="chart" id="flowChart"></div><div id="flowList"></div>
+          <div id="flowKpis"></div><div class="chart" id="flowChart"></div><div class="stack" id="flowCatOut"></div><div id="flowList"></div>
         </div>
         <div class="grid g-hero">
           <div class="card"><div class="card-head"><h3>매달 이렇게 나눠 보세요</h3><span class="chip accent" id="sSurplus"></span></div><div id="salOut"></div></div>
@@ -389,6 +391,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
       <!-- GROW -->
       <section class="page" id="p-grow" hidden>
         <div class="page-head"><div><h1>목표 · 시뮬레이션</h1><div class="sub">목표 달성 확률을 몬테카를로 방식으로 계산해요.</div></div><button class="btn" id="addGoal">＋ 목표 추가</button></div>
+        <div class="card"><div class="card-head"><h3>배당·이자 수령 캘린더</h3><span class="xs muted">향후 12개월 · 세후 추정</span></div><div class="stack" id="calOut"></div></div>
         <div class="card"><div class="card-head"><h3>경제적 자유 지표</h3><span class="xs muted">자산소득으로 생활비를 얼마나 충당하나</span></div><div class="stack" id="fireOut"></div></div>
         <div class="card"><div class="card-head"><h3>내 목표</h3></div><div id="gGoals"></div></div>
         <div class="card">
@@ -437,6 +440,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
             <label class="field">부양가족 수 (본인 포함)<input id="s-dep" type="number" min="1" max="10" inputmode="numeric"></label>
             <label class="field">세대주 여부<select id="s-head"><option value="yes">세대주</option><option value="no">세대원</option></select></label>
             <label class="field">월 카드·현금영수증 사용(원)<input id="s-card" type="number" min="0" step="10000" inputmode="numeric"></label>
+            <label class="field">그중 체크카드·현금 비율(%)<input id="s-debit" type="number" min="0" max="100" step="5" inputmode="numeric" placeholder="0"></label>
             <label class="field">투자 성향<select id="s-risk"><option value="low">안정형 · 손실이 싫어요</option><option value="mid">균형형</option><option value="high">성장형 · 변동 감수</option></select></label>
             <label class="field">무주택 여부<select id="s-house"><option value="yes">무주택</option><option value="no">주택 보유</option></select></label>
             <label class="field">가장 큰 목표<select id="s-goal"><option value="house">내 집 마련</option><option value="seed">목돈 마련 (3~5년)</option><option value="retire">노후 준비</option></select></label>
@@ -462,6 +466,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
         <label class="field">평균 단가<input id="f-avg" type="number" min="0" step="any"></label>
         <label class="field">현재가<input id="f-price" type="number" min="0" step="any"></label>
         <label class="field" id="f-div-wrap">배당수익률(연 %)<input id="f-div" type="number" min="0" step="0.1" placeholder="0"></label>
+        <label class="field">배당 주기<select id="f-divfreq"><option value="m">매월</option><option value="q">분기</option><option value="h">반기</option><option value="y">연 1회</option><option value="none">배당 없음</option></select></label>
       </div>
     </div>
     <div id="sec-amt">
@@ -571,7 +576,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.5.0";
+const APP_VERSION="3.6.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1216,7 +1221,7 @@ function openHolding(id,presetType){editingId=id||null;const h=items.find(x=>x.i
   $("#holdTitle").textContent=h?"자산 수정":"자산 추가";$("#holdDel").hidden=!h;
   const set=(i,v)=>$("#"+i).value=v??"";
   set("f-type",ty);set("f-name",h?.name);set("f-account",h?.account);set("f-currency",h?.currency||"KRW");set("f-ticker",h?.ticker);
-  set("f-qty",h&&num(h.qty)?h.qty:"");set("f-avg",h&&num(h.avg)?h.avg:"");set("f-price",h&&num(h.price)?h.price:"");set("f-div",h?.divYield||"");
+  set("f-qty",h&&num(h.qty)?h.qty:"");set("f-avg",h&&num(h.avg)?h.avg:"");set("f-price",h&&num(h.price)?h.price:"");set("f-div",h?.divYield||"");set("f-divfreq",h?.divFreq||DIV_DEFAULT[ty]||"q");
   set("f-avgfx",h?.currency==="USD"?Math.round((num(h.avgFx)||fxRate("USD"))*100)/100:Math.round(fxRate("USD")*100)/100);
   set("f-value",h&&!isSec(h)?h.value:"");set("f-principal",h&&!isSec(h)?h.principal:"");set("f-monthly",h?.monthly||"");set("f-rate",h?h.rate:"");set("f-maturity",h?.maturity);set("f-start",h?.start||today());
   $("#f-useqty").checked=h?isSec(h):TYPES[ty].mode==="qty";$("#f-autopay").checked=!!h?.autopay;
@@ -1226,7 +1231,7 @@ $("#holdForm").addEventListener("submit",e=>{e.preventDefault();
   if(q&&!(qty>0)){toast("보유 수량을 입력하세요");return;}if(!q&&!(num(g("f-value"))>0)&&!(num(g("f-principal"))>0)){toast(T.mode==="debt"?"대출 잔액을 입력하세요":"금액을 입력하세요");return;}
   const prev=items.find(x=>x.id===editingId);const cur=g("f-currency");
   const h={...(prev||{}),id:editingId||uid(),kind:"holding",type,name:g("f-name").trim()||T.label,account:g("f-account").trim(),currency:cur,ticker:g("f-ticker").trim(),
-    qty:q?qty:0,avg:q?(avg||price):0,price:q?(price||avg):0,divYield:num(g("f-div")),
+    qty:q?qty:0,avg:q?(avg||price):0,price:q?(price||avg):0,divYield:num(g("f-div")),divFreq:g("f-divfreq"),
     value:q?0:num(g("f-value")),principal:q?0:(g("f-principal")===""?num(g("f-value")):num(g("f-principal"))),
     avgFx:cur==="USD"?(num(g("f-avgfx"))||fxRate("USD")):0,monthly:num(g("f-monthly")),rate:g("f-rate")===""?(["invest","pension"].includes(T.grp)?assum(type).r:T.rate):num(g("f-rate")),
     maturity:g("f-maturity"),start:g("f-start")||today(),createdAt:prev?.createdAt||Date.now(),priceAt:q&&(!prev||num(prev.price)!==(price||avg))?today():(prev?.priceAt||today()),
@@ -1357,12 +1362,13 @@ function housingPaidYear(){const hs=items.filter(h=>h.type==="housing");const y=
 function wageTax(extraPension){const R=TAXR();const g=num(PROFILE.salary);const ed=earnedDeduction(g);const earned=Math.max(0,g-ed);const si=socialIns(g);
   const personal=R.basic*Math.max(1,num(PROFILE.dependents)||1);
   const housingOk=PROFILE.house==="yes"&&PROFILE.head==="yes"&&g<=R.housing.salaryCut;const hp=housingPaidYear();const housingDed=housingOk?Math.min(hp,R.housing.limit)*R.housing.rate:0;
-  const cardUse=num(PROFILE.card)*12;const cardLimit=g<=7e7?R.card.limitLow:g<=1.2e8?R.card.limitMid:R.card.limitHigh;const cardDed=Math.min(cardLimit,Math.max(0,cardUse-g*R.card.min)*R.card.credit);
+  const cardUse=num(PROFILE.card)*12;const dp=Math.min(100,Math.max(0,num(PROFILE.debitPct)))/100;const cardLimit=g<=7e7?R.card.limitLow:g<=1.2e8?R.card.limitMid:R.card.limitHigh;const thr=g*R.card.min;const cr=cardUse*(1-dp),db=cardUse*dp;
+  const cardRaw=cr>=thr?(cr-thr)*R.card.credit+db*.3:Math.max(0,db-(thr-cr))*.3;const cardDed=Math.min(cardLimit,cardRaw);
   const base=Math.max(0,earned-si.total-personal-housingDed-cardDed);const calc=progTax(base);
   const wc=Math.min(calc<=1.3e6?calc*.55:715000+(calc-1.3e6)*.3,wageCreditLimit(g));
   const pp=pensionProjection();const pens=Math.min(pp.pension+(extraPension||0),R.pension.pensionOnly);const pensTot=Math.min(pens+pp.irp,R.pension.total);const pRate=g<=R.pension.salaryCut?R.pension.low/1.1:R.pension.high/1.1;
   const afterWage=Math.max(0,calc-wc-R.standardCredit);const pensCredit=Math.min(afterWage,pensTot*pRate);const decided=Math.max(0,afterWage-pensCredit);
-  return {g,ed,earned,si,personal,housingOk,hp,housingDed,cardUse,cardDed,base,calc,wc,std:R.standardCredit,pensTot,pRate:pRate*1.1,pensCredit,decided,local:decided*R.local,total:decided*(1+R.local),marg:margRate(base),pp};}
+  return {g,ed,earned,si,personal,housingOk,hp,housingDed,cardUse,cardDed,cardThr:thr,cardLimit,cardCr:cr,cardDb:db,base,calc,wc,std:R.standardCredit,pensTot,pRate:pRate*1.1,pensCredit,decided,local:decided*R.local,total:decided*(1+R.local),marg:margRate(base),pp};}
 function finTax(t,w){const R=TAXR();let expInt=0,expDiv=0;items.forEach(h=>{if(isDebt(h)||isTaxFree(h)||h.type==="lease"||h.type==="realestate")return;const v=valKRW(h);if(["cash","fixed","bond"].includes(clsOf(h)))expInt+=v*num(h.rate)/100;else expDiv+=v*num(h.divYield)/100;});
   const fin=expInt+expDiv;let extra=0;if(fin>R.finThreshold){const ex=fin-R.finThreshold;const divShare=fin?expDiv/fin:0;const gross=ex*(1+divShare*R.grossUp);
     const comp=progTax(w.base+gross)-progTax(w.base)+R.finThreshold*R.finRate-ex*divShare*R.grossUp;const sep=fin*R.finRate;extra=Math.max(0,Math.max(comp,sep)-sep)*(1+R.local);}
@@ -1411,6 +1417,7 @@ function alerts(t){const out=[];items.filter(x=>x.maturity).forEach(x=>{const d=
   const tg=targets(t),band=num(UI.band)||5;if(t.value)Object.keys(CLASSES).forEach(k=>{const d=((t.byCls[k]||0)/t.value*100)-num(tg[k]);if(Math.abs(d)>band)out.push(["warn",`${CLASSES[k].label} 비중이 목표보다 ${d>0?"+":""}${d.toFixed(1)}%p 벗어났어요. 리밸런싱을 검토하세요.`]);});
   const stale=items.filter(isSec).filter(h=>!h.priceAt||days(h.priceAt,today())>7);if(stale.length&&items.some(isSec))out.push(["info",`현재가를 입력한 지 오래된 종목이 ${stale.length}개 있어요. 자산 화면의 '현재가 일괄 입력'을 이용하세요.`]);
   if(items.length&&new Date().getDate()>=Math.min(28,num(PROFILE.payday)||25)-20&&!flows.some(f=>f.m===prevMonth()))out.push(["info",`${prevMonth().slice(5)}월 결산을 아직 안 했어요. 월급 화면에서 실제 수입·지출을 기록하면 저축률이 쌓여요.`]);
+  if(new Date().getMonth()>=10){const ye=yearEnd(t);const g=ye.acts.reduce((s,a)=>s+a.gain,0);if(g>0)out.push(["warn",`연말정산 D-${ye.dleft} · 지금 실행하면 약 ${short(g)}원을 아낄 수 있어요. 세금 화면에서 확인하세요.`]);}
   const lb=LS.get(K.lastBackup,0);if(items.length>=3&&(!lb||Date.now()-lb>30*864e5))out.push(["warn",`${lb?"마지막 백업 후 30일이 지났어요":"아직 백업한 적이 없어요"}. 설정에서 백업 파일을 내보내 두세요. 데이터는 이 PC에만 저장돼요.`]);
   (DATA.notices||[]).forEach(n=>out.push(["info",esc(n)]));advice(t).filter(a=>a[0]==="bad").forEach(a=>out.push(a));return out;}
 const dotColor={good:"var(--good)",warn:"var(--warn)",bad:"var(--bad)",info:"var(--info)"};
@@ -1600,17 +1607,29 @@ function renderNewCash(t){const amt=num($("#newCash").value);if(!amt){$("#newCas
 
 /* ---- tax page ---- */
 let extraPension=0;
-function renderTax(t){renderProfileStrip();const R=TAXR(),tr=taxReport(t),w=tr.w;const comp={small:"중소기업",mid:"중견기업",large:"대기업",public:"공공기관"}[PROFILE.company]||"중견기업";
+function yearEnd(t){const R=TAXR(),w=wageTax(0);const now=new Date();const end=new Date(now.getFullYear(),11,31);const dleft=Math.ceil((end-now)/864e5);const marg=w.marg*(1+R.local);const acts=[];
+  const pLeft=Math.max(0,R.pension.total-w.pensTot);const pCredOk=Math.max(0,w.calc-w.wc-w.std-w.pensCredit);if(pLeft>0&&pCredOk>0)acts.push({t:"연금저축·IRP 추가 납입",amt:pLeft,gain:Math.min(pLeft*w.pRate,pCredOk*(1+R.local)),d:`12월 31일까지 입금분만 올해 공제돼요. 연금저축 단독 한도 600만 원을 넘는 금액은 IRP로.`});
+  if(w.housingOk&&w.hp<R.housing.limit)acts.push({t:"주택청약 추가 납입",amt:R.housing.limit-w.hp,gain:(R.housing.limit-w.hp)*R.housing.rate*marg,d:"연 300만 원까지 40% 소득공제. 무주택 확인서를 회사에 제출하세요."});
+  if(num(PROFILE.card)){const rem=Math.max(0,11-now.getMonth())+ (1-now.getDate()/31);const over=w.cardCr+w.cardDb-w.cardThr;
+    acts.push(over<0?{t:"남은 기간 신용카드 위주 사용",amt:0,gain:0,d:`연 카드 사용 예상 ${short(w.cardCr+w.cardDb)}원이 문턱(총급여 25%) ${short(w.cardThr)}원에 못 미쳐요. 문턱까지는 공제가 없으니 혜택 많은 신용카드를 쓰세요.`}
+      :w.cardDed>=w.cardLimit?{t:"카드 소득공제 한도 도달",amt:0,gain:0,d:`기본 공제 한도 ${short(w.cardLimit)}원을 채울 예정이에요. 남은 기간은 혜택 좋은 카드를 쓰세요(전통시장·대중교통은 별도 한도).`}
+      :{t:"남은 기간 체크카드·현금영수증 사용",amt:0,gain:Math.min(w.cardLimit-w.cardDed,num(PROFILE.card)*rem*.15)*marg,d:`문턱을 넘었으니 체크카드·현금영수증(30%)이 신용카드(15%)보다 공제가 2배예요.`});}
+  if(!items.some(h=>/ISA/i.test(h.account||"")))acts.push({t:"ISA 계좌 개설",amt:0,gain:0,d:"올해 개설하면 의무가입 3년이 내년보다 빨리 끝나요. 납입 한도(연 2,000만 원)는 개설 연도부터 쌓여요."});
+  return {dleft,acts,w};}
+function renderYearEnd(t){const y=yearEnd(t);const m=new Date().getMonth();if(m<9){$("#yeOut").innerHTML="";$("#yeCard").hidden=true;return;}$("#yeCard").hidden=false;
+  const tot=y.acts.reduce((s,a)=>s+a.gain,0);$("#yeTitle").textContent=`연말정산 D-${y.dleft}`;
+  $("#yeOut").innerHTML=`<div class="note">12월 31일까지 실행하면 올해 세금이 줄어드는 항목이에요. 예상 절세 합계 <b class="pos">${short(tot)}원</b></div>`+y.acts.map(a=>`<div class="alert"><span class="dot" style="background:${a.gain?"var(--good)":"var(--info)"}"></span><span style="flex:1"><b>${a.t}</b>${a.amt?` · <span class="num">${short(a.amt)}원</span>`:""}${a.gain?` → <b class="num pos">약 ${short(a.gain)}원 절세</b>`:""}<br><span class="small ink2">${a.d}</span></span></div>`).join("");}
+function renderTax(t){renderProfileStrip();renderYearEnd(t);const R=TAXR(),tr=taxReport(t),w=tr.w;const comp={small:"중소기업",mid:"중견기업",large:"대기업",public:"공공기관"}[PROFILE.company]||"중견기업";
   $("#taxSub").textContent=`${R.year}년 귀속 · ${comp} 근로자 · 총급여 ${short(w.g)}원 기준 추정치`;
   const w2=wageTax(extraPension);const gain=(w.total-w2.total);
   $("#taxKpis").innerHTML=kpi("예상 결정세액",short(w.total)+"원",`소득세 ${short(w.decided)} + 지방소득세 ${short(w.local)}`)+kpi("한계세율",pctp(w.marg,0)+` (+지방 ${pctp(w.marg*.1,1)})`,`과세표준 ${short(w.base)}원`,"","추가 소득 1원당 붙는 세율. 소득공제 효과도 이 세율만큼 생겨요.")+
     kpi("연금계좌 세액공제",short(w.pensCredit*(1+R.local))+"원",`연말까지 예상 납입 ${short(w.pensTot)}원 / ${short(R.pension.total)}원`,"pos")+kpi("4대보험 (근로자 부담)",short(w.si.total)+"원",`월 ${short(w.si.total/12)}원`);
-  const row=(l,v,n,b)=>`<tr style="cursor:default"><td${b?' style="font-weight:700"':""}>${l}${n?` <span class="xs muted">${n}</span>`:""}</td><td class="r num"${b?' style="font-weight:700"':""}>${v}</td></tr>`;
+  const row=(l,v,n,b)=>`<tr style="cursor:default"><td style="white-space:normal${b?";font-weight:700":""}">${l}${n?` <span class="xs muted">${n}</span>`:""}</td><td class="r num"${b?' style="font-weight:700"':""}>${v}</td></tr>`;
   $("#wageTbl").innerHTML=`<div class="tablewrap"><table class="dense" style="min-width:0"><tbody>
     ${row("총급여",won(w.g))}${row("− 근로소득공제",won(w.ed),"한도 2,000만")}${row("= 근로소득금액",won(w.earned),"",1)}
     ${row("− 국민연금",won(w.si.np),`${pctp(R.social.np,2)} · 상한 월 ${short(R.social.npCapMonthly)}`)}${row("− 건강·장기요양보험",won(w.si.hi+w.si.ltc),`${pctp(R.social.hi,3)} · 장기요양 ${pctp(R.social.ltcOfHi,2)}`)}${row("− 고용보험",won(w.si.ei),pctp(R.social.ei,1))}
     ${row("− 인적공제 (기본공제)",won(w.personal),`${Math.max(1,num(PROFILE.dependents)||1)}명 × 150만`)}${row("− 주택청약 소득공제",won(w.housingDed),w.housingOk?`납입 ${short(w.hp)} × 40% (한도 300만)`:"무주택 세대주·총급여 7천만 이하만")}
-    ${row("− 신용카드 등 소득공제",won(w.cardDed),num(PROFILE.card)?`연 사용 ${short(w.cardUse)} · 총급여 25% 초과분 15%로 단순화`:"월 카드 사용액 입력 시 계산")}
+    ${row("− 신용카드 등 소득공제",won(w.cardDed),num(PROFILE.card)?`연 사용 ${short(w.cardUse)} · 문턱(총급여 25%) ${short(w.cardThr)} 초과분: 신용 15%·체크/현금 30%`:"월 카드 사용액 입력 시 계산")}
     ${row("= 과세표준",won(w.base),"",1)}${row("산출세액",won(w.calc),`세율 ${pctp(w.marg,0)} 구간`)}${row("− 근로소득세액공제",won(w.wc))}${row("− 표준세액공제",won(w.std),"특별세액공제 미적용 가정")}
     ${row("− 연금계좌 세액공제",won(w.pensCredit),`${short(w.pensTot)} × ${(w.pRate/1.1*100).toFixed(1)}%`)}${row("= 결정세액 (소득세)",won(w.decided),"",1)}${row("+ 지방소득세",won(w.local),"10%")}${row("총 부담 세액",won(w.total),"",1)}
     </tbody></table></div>`;
@@ -1640,15 +1659,24 @@ const y_=()=>yr();
 /* ---- monthly cashflow (월간 결산) ---- */
 let flows=LS.get(K.flow,[]);if(!Array.isArray(flows))flows=[];
 const prevMonth=()=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);return iso(d).slice(0,7);};
-function fillFlowForm(){const m=$("#fl-month").value||prevMonth();$("#fl-month").value=m;const f=flows.find(x=>x.m===m);$("#fl-income").value=f?f.income:incomeOf();$("#fl-expense").value=f?f.expense:PROFILE.expense;$("#fl-memo").value=f?.memo||"";}
+const CATS=[["home","주거·관리비"],["food","식비"],["trans","교통·차량"],["comm","통신·구독"],["ins","보험"],["shop","쇼핑·여가"],["family","경조사·가족"],["etc","기타"]];
+function catSum(){return CATS.reduce((s,[k])=>s+num($("#fc-"+k).value),0);}
+function fillFlowForm(){const m=$("#fl-month").value||prevMonth();$("#fl-month").value=m;const f=flows.find(x=>x.m===m);$("#fl-income").value=f?f.income:incomeOf();$("#fl-expense").value=f?f.expense:PROFILE.expense;$("#fl-memo").value=f?.memo||"";CATS.forEach(([k])=>$("#fc-"+k).value=f?.cat?.[k]||"");}
+$("#flowCats").innerHTML=CATS.map(([k,l])=>`<label class="field">${l}<input id="fc-${k}" type="number" min="0" step="10000" inputmode="numeric"></label>`).join("");
+$("#flowCats").addEventListener("input",()=>{const s=catSum();if(s>0)$("#fl-expense").value=s;});
 $("#fl-month").addEventListener("change",fillFlowForm);
-$("#flowForm").addEventListener("submit",e=>{e.preventDefault();const m=$("#fl-month").value;if(!m){toast("월을 선택하세요");return;}const f={m,income:num($("#fl-income").value),expense:num($("#fl-expense").value),memo:$("#fl-memo").value.trim()};
+$("#flowForm").addEventListener("submit",e=>{e.preventDefault();const m=$("#fl-month").value;if(!m){toast("월을 선택하세요");return;}const cat=Object.fromEntries(CATS.map(([k])=>[k,num($("#fc-"+k).value)]).filter(([,v])=>v>0));const f={m,income:num($("#fl-income").value),expense:num($("#fl-expense").value),memo:$("#fl-memo").value.trim(),cat:Object.keys(cat).length?cat:undefined};
   flows=flows.filter(x=>x.m!==m).concat(f).sort((a,b)=>a.m<b.m?-1:1);LS.set(K.flow,flows);renderFlow();toast(`${m} 결산을 저장했어요 · 저축률 ${f.income?Math.round((f.income-f.expense)/f.income*100):0}%`);});
 function barChart(rows){if(!rows.length)return "";const W=1000,H=220,L=40,R=10,T=14,B=26;const mx=Math.max(60,...rows.map(r=>r.v)),mn=Math.min(0,...rows.map(r=>r.v));const bw=(W-L-R)/rows.length;const y=v=>T+(H-T-B)*(1-(v-mn)/(mx-mn));
   let g="";[mn,0,mx/2,mx].filter((v,i,a)=>a.indexOf(v)===i).forEach(v=>g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${Math.round(v)}%</text>`);
   rows.forEach((r,i)=>{const w=Math.min(bw*.64,56),x=L+i*bw+(bw-w)/2;const y0=y(0),y1=y(r.v);g+=`<rect x="${x}" y="${Math.min(y0,y1)}" width="${w}" height="${Math.max(1,Math.abs(y1-y0))}" rx="4" fill="var(${r.v>=0?"--c1":"--c5"})"/><text x="${x+w/2}" y="${H-8}" text-anchor="middle">${esc(r.l)}</text>`;});
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="월별 저축률">${g}</svg>`;}
-function renderFlow(){const last=flows.slice(-12);const tot=last.reduce((s,f)=>({i:s.i+f.income,e:s.e+f.expense}),{i:0,e:0});
+function renderCatBreak(last){const withCat=last.filter(f=>f.cat);if(!withCat.length){$("#flowCatOut").innerHTML="";return;}const avg={};CATS.forEach(([k])=>avg[k]=withCat.reduce((s,f)=>s+num(f.cat[k]),0)/withCat.length);const tot=Object.values(avg).reduce((a,b)=>a+b,0)||1;
+  const cols=["--c1","--c2","--c3","--c4","--c5","--c6","--c7","--c8"];const sorted=CATS.map(([k,l],i)=>({k,l,v:avg[k],c:cols[i]})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);const inc=incomeOf();
+  $("#flowCatOut").innerHTML=`<div class="sec-title">지출 구성 (카테고리 입력한 ${withCat.length}개월 평균)</div><div class="bar" style="height:14px">${sorted.map(x=>`<span style="width:${x.v/tot*100}%;background:var(${x.c})" title="${x.l}"></span>`).join("")}</div>
+   <div class="split">${sorted.map(x=>`<div class="tile"><div class="k"><span class="badge-dot" style="background:var(${x.c})"></span>${x.l}</div><div class="v num">${short(x.v)}원</div><div class="n">지출의 ${pctp(x.v/tot,0)}${inc?` · 수입의 ${pctp(x.v/inc,0)}`:""}</div></div>`).join("")}</div>
+   ${inc&&avg.home/inc>.3?'<div class="alert"><span class="dot" style="background:var(--warn)"></span><span>주거비가 수입의 30%를 넘어요. 일반적으로 25~30% 이하가 권장돼요.</span></div>':""}${inc&&avg.comm/inc>.05?'<div class="alert"><span class="dot" style="background:var(--warn)"></span><span>통신·구독료가 수입의 5%를 넘어요. 안 쓰는 구독부터 정리해 보세요.</span></div>':""}`;}
+function renderFlow(){const last=flows.slice(-12);renderCatBreak(last);const tot=last.reduce((s,f)=>({i:s.i+f.income,e:s.e+f.expense}),{i:0,e:0});
   $("#flowKpis").innerHTML=last.length?`<div class="split"><div class="tile"><div class="k">최근 ${last.length}개월 평균 저축률</div><div class="v num ${tot.i&&tot.i>tot.e?"pos":"neg"}">${tot.i?Math.round((tot.i-tot.e)/tot.i*100):0}%</div><div class="n">권장 30% 이상</div></div><div class="tile"><div class="k">월평균 지출</div><div class="v num">${short(tot.e/last.length)}원</div><div class="n">설정한 생활비 ${short(PROFILE.expense)}원</div></div><div class="tile"><div class="k">누적 저축액</div><div class="v num">${short(tot.i-tot.e)}원</div></div></div>`:"";
   $("#flowChart").innerHTML=last.length>=1?barChart(last.map(f=>({l:f.m.slice(2).replace("-","."),v:f.income?(f.income-f.expense)/f.income*100:0}))):'<div class="note">매달 초 지난달의 실제 수입·지출을 기록하면 저축률 추이가 쌓여요.</div>';
   $("#flowList").innerHTML=last.length?`<div class="tablewrap"><table class="dense" style="min-width:480px"><thead><tr><th>월</th><th class="r">수입</th><th class="r">지출</th><th class="r">저축</th><th class="r">저축률</th><th>메모</th><th></th></tr></thead><tbody>${last.slice().reverse().map(f=>`<tr style="cursor:default"><td class="num">${f.m}</td><td class="r num">${won(f.income)}</td><td class="r num">${won(f.expense)}</td><td class="r num ${sgn(f.income-f.expense)}">${won(f.income-f.expense)}</td><td class="r num">${f.income?Math.round((f.income-f.expense)/f.income*100):0}%</td><td class="small muted">${esc(f.memo||"")}</td><td><button class="link small" data-flm="${f.m}" style="color:var(--muted)">수정</button></td></tr>`).join("")}</tbody></table></div>`:"";
@@ -1664,6 +1692,24 @@ function renderFire(t){const pi=passiveIncome(t),inv=investable(t),need=PROFILE.
    <div class="tile"><div class="k">도달 예상</div><div class="v num">${yrs==null?"60년+":yrs<.1?"달성":Math.ceil(yrs)+"년 뒤"}</div><div class="n">지금 저축 속도·기대수익률 유지 시</div></div></div>
    <div class="progress" style="height:10px"><span style="width:${prog*100}%"></span></div><div class="xs muted">투자자산 ${short(inv)}원${unsec?` − 신용성 부채 ${short(unsec)}원`:""} = ${short(base)}원 · 진행률 ${pctp(prog,1)} · 주담대·전세대출은 집·보증금과 상계해 제외${t.debtInterest?` · 대출 이자 연 ${short(t.debtInterest)}원이 자산소득을 상쇄해요`:""}</div>`;}
 
+/* ---- income calendar ---- */
+const DIV_DEFAULT={kstock:"y",ostock:"q",ketf:"q",oetf:"q",reit:"h",fund:"y"};
+const DIV_MONTHS={m:[1,2,3,4,5,6,7,8,9,10,11,12],q:{kstock:[4,5,8,11],ostock:[3,6,9,12],oetf:[3,6,9,12],ketf:[1,4,7,10],reit:[3,6,9,12],fund:[3,6,9,12],other:[3,6,9,12]},h:[6,12],y:[4]};
+function incomeCalendar(t){const now=new Date();const mons=Array.from({length:12},(_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()+i,1);return {key:iso(d).slice(0,7),mo:d.getMonth()+1,div:0,int:0,mat:0,list:[]};});
+  items.forEach(h=>{if(isDebt(h))return;const v=valKRW(h),T=TYPES[h.type];const free=isTaxFree(h);const net=x=>free?x:x*(1-.154);
+    if(num(h.divYield)>0){const fq=h.divFreq||DIV_DEFAULT[h.type]||"q";if(fq!=="none"){const ms=fq==="m"?DIV_MONTHS.m:fq==="q"?(DIV_MONTHS.q[h.type]||DIV_MONTHS.q.other):DIV_MONTHS[fq];const per=net(v*num(h.divYield)/100)/ms.length;mons.forEach(m=>{if(ms.includes(m.mo)){m.div+=per;m.list.push(`${h.name} 배당 ${short(per)}`);}});}}
+    if(["cash"].includes(T.cls)&&num(h.rate)>0&&h.type!=="lease"){const per=net(v*num(h.rate)/100/12);mons.forEach(m=>{m.int+=per;});}
+    const me=maturityEst(h);if(me){const k=h.maturity.slice(0,7);const m=mons.find(x=>x.key===k);if(m){m.mat+=me.amt;m.list.push(`${h.name} 만기 ${short(me.amt)}`);}}});
+  return mons;}
+function renderCalendar(t){const mons=incomeCalendar(t);const tot=mons.reduce((s,m)=>s+m.div+m.int,0);const W=1000,H=200,L=56,R=10,T=14,B=26;const mx=Math.max(1,...mons.map(m=>m.div+m.int));const bw=(W-L-R)/12;const y=v=>T+(H-T-B)*(1-v/mx);
+  let g="";[0,mx/2,mx].forEach(v=>g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${axisFmt(v)}</text>`);
+  mons.forEach((m,i)=>{const w=Math.min(bw*.6,44),x=L+i*bw+(bw-w)/2;const yd=y(m.div),yi=y(m.div+m.int);g+=`<rect x="${x}" y="${yd}" width="${w}" height="${Math.max(0,y(0)-yd)}" fill="var(--c1)" rx="3"/><rect x="${x}" y="${yi}" width="${w}" height="${Math.max(0,yd-yi)}" fill="var(--c2)" rx="3"/>${m.mat?`<circle cx="${x+w/2}" cy="${T+4}" r="5" fill="var(--c3)"/>`:""}<text x="${x+w/2}" y="${H-8}" text-anchor="middle">${m.mo}월</text>`;});
+  const yt=String(yr());const actual=txs.filter(x=>x.date.startsWith(yt)&&["dividend","interest"].includes(x.kind)).reduce((s,x)=>s+(num(x.amount)-num(x.tax))*txFx(x),0);
+  $("#calOut").innerHTML=`<div class="split"><div class="tile"><div class="k">향후 12개월 세후 배당·이자</div><div class="v num pos">${short(tot)}원</div><div class="n">월평균 ${short(tot/12)}원</div></div><div class="tile"><div class="k">올해 실제 받은 배당·이자</div><div class="v num">${short(actual)}원</div><div class="n">거래 원장 기준 (세후)</div></div><div class="tile"><div class="k">12개월 내 만기 도래</div><div class="v num">${short(mons.reduce((s,m)=>s+m.mat,0))}원</div><div class="n">${mons.filter(m=>m.mat).map(m=>m.mo+"월").join(", ")||"없음"}</div></div></div>
+    <div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="월별 예상 배당·이자">${g}</svg></div><div class="row wrap small" style="gap:14px"><span class="row" style="gap:6px"><i style="width:10px;height:10px;border-radius:3px;background:var(--c1)"></i>배당</span><span class="row" style="gap:6px"><i style="width:10px;height:10px;border-radius:3px;background:var(--c2)"></i>예금·파킹 이자</span><span class="row" style="gap:6px"><i style="width:10px;height:10px;border-radius:50%;background:var(--c3)"></i>예적금 만기</span></div>
+    <div class="stack" style="gap:4px">${mons.filter(m=>m.list.length).slice(0,6).map(m=>`<div class="row between small"><span class="muted">${m.key}</span><span style="text-align:right">${m.list.slice(0,3).map(esc).join(" · ")}${m.list.length>3?` 외 ${m.list.length-3}건`:""}</span></div>`).join("")}</div>
+    <div class="note">배당 지급 월은 자산 수정 화면의 '배당 주기'로 바꿀 수 있어요. 기본값: 국내주식 연 1회(4월), 해외주식·ETF 분기, 리츠 반기. 적금·청약 이자는 만기에 함께 받는 것으로 계산해요.</div>`;}
+
 /* ---- onboarding checklist ---- */
 function renderOnboard(t){if(LS.get(K.onb,false)){$("#onboard").innerHTML="";return;}const steps=[["연봉 입력",LS.get(K.profile,null)!==null,()=>openProfile()],["월급통장 추가",items.some(h=>h.type==="checking"),()=>openHolding(null,"checking")],["투자·연금 1개 이상",items.some(h=>["invest","pension"].includes(TYPES[h.type].grp)),()=>openHolding(null,"ketf")],["목표 만들기",goals.length>0,()=>openGoal()],["첫 백업",!!LS.get(K.lastBackup,0),()=>{$("#setDlg").showModal();}]];
   const done=steps.filter(s=>s[1]).length;if(done===steps.length){$("#onboard").innerHTML="";return;}
@@ -1677,7 +1723,7 @@ function renderProfileStrip(){const comp={small:"중소기업",mid:"중견기업
   $$(".profile-strip").forEach(el=>{el.innerHTML=html;});$$("[data-open-profile2]").forEach(b=>b.onclick=()=>openProfile());}
 
 /* ---- salary ---- */
-const SAL_FIELDS={incomeMode:"s-incmode",income:"s-income",expense:"s-expense",salary:"s-salary",age:"s-age",payday:"s-payday",risk:"s-risk",house:"s-house",goal:"s-goal",company:"s-company",dependents:"s-dep",head:"s-head",card:"s-card"};
+const SAL_FIELDS={incomeMode:"s-incmode",income:"s-income",expense:"s-expense",salary:"s-salary",age:"s-age",payday:"s-payday",risk:"s-risk",house:"s-house",goal:"s-goal",company:"s-company",dependents:"s-dep",head:"s-head",card:"s-card",debitPct:"s-debit"};
 const fillSal=()=>{Object.entries(SAL_FIELDS).forEach(([k,id])=>{$("#"+id).value=PROFILE[k]??"";});const auto=PROFILE.incomeMode!=="manual";$("#s-income").disabled=auto;if(auto)$("#s-income").value=incomeOf();$("#s-income-hint").textContent=auto?"연봉에서 4대보험·세금을 빼고 자동 계산":"직접 입력한 값 사용";};
 $("#salForm").addEventListener("input",()=>{Object.entries(SAL_FIELDS).forEach(([k,id])=>{const v=$("#"+id).value;if(k==="income"&&PROFILE.incomeMode!=="manual")return;PROFILE[k]=["risk","house","goal","company","head","incomeMode"].includes(k)?v:num(v);});LS.set(K.profile,PROFILE);mcTouched=false;const auto=PROFILE.incomeMode!=="manual";$("#s-income").disabled=auto;if(auto)$("#s-income").value=incomeOf();$("#s-income-hint").textContent=auto?"연봉에서 4대보험·세금을 빼고 자동 계산":"직접 입력한 값 사용";renderSoon();});
 $("#salForm").addEventListener("submit",e=>e.preventDefault());
@@ -1710,7 +1756,7 @@ function renderMC(){const s=num($("#mc-start").value),m=num($("#mc-monthly").val
     (goal?kpi("목표 달성 확률",pctp(prob,0),`목표 ${short(goal)}원 · 원금 손실 확률 ${pctp(loss,0)}`,prob>=.7?"pos":prob<.4?"neg":""):kpi("원금 손실 확률",pctp(loss,0),`${Y}년 뒤 넣은 돈보다 적을 확률`));
   const step=Y<=10?1:Y<=20?2:5;const xl=[];for(let i=0;i<=Y;i+=step)xl.push([i,i+"년"]);
   $("#mcChart").innerHTML=lineChart([{pts:Array.from({length:Y+1},(_,i)=>s+m*12*i),dash:true},{pts:P[.5],c:"--c1"}],{h:280,zero:true,goal,extra:[P[.9][Y]],xlabels:xl,label:"몬테카를로 분포",tt:{labels:Array.from({length:Y+1},(_,i)=>i+"년 뒤"),series:[{name:"상위 10%",c:"--c1",pts:P[.9]},{name:"중앙값",c:"--c1",pts:P[.5]},{name:"하위 10%",c:"--c5",pts:P[.1]},{name:"넣은 돈",c:"--c7",pts:Array.from({length:Y+1},(_,i)=>s+m*12*i)}]},bands:[{hi:P[.9],lo:P[.1],c:"--c1",o:.13},{hi:P[.75],lo:P[.25],c:"--c1",o:.22}]});}
-function renderGrow(t){renderFire(t);$("#gGoals").innerHTML=goalsHtml(t,false);bindGoals();$("#gAdvice").innerHTML=advice(t).map(alertHtml).join("");
+function renderGrow(t){renderFire(t);renderCalendar(t);$("#gGoals").innerHTML=goalsHtml(t,false);bindGoals();$("#gAdvice").innerHTML=advice(t).map(alertHtml).join("");
   if(!mcTouched){const pl=salaryPlan(PP(),t),mr=modelRisk(t);$("#mc-start").value=Math.round(investable(t));$("#mc-monthly").value=pl.err?0:pl.surplus;
     const g=goals[0];$("#mc-goal").value=g?g.target:300000000;if(g){const yy=Math.max(1,Math.round(days(today(),g.date)/365));$("#mc-years").value=yy;}
     $("#mc-mu").value=mr?(mr.mu*100).toFixed(1):5;$("#mc-sigma").value=mr?(mr.sig*100).toFixed(1):10;}
