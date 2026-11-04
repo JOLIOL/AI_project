@@ -336,6 +336,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
           <div class="row wrap" style="gap:10px"><span class="small ink2">신규 자금</span><span class="wt"><input id="newCash" type="number" min="0" step="100000" style="width:140px" aria-label="신규 자금"></span><span class="small ink2">원을 넣는다면</span></div>
           <div id="newCashOut"></div>
         </div>
+        <div class="card"><div class="card-head"><h3>대출 중도상환 시뮬레이터</h3><div class="row wrap" style="gap:8px"><select id="loanSel" class="btn ghost sm" aria-label="대출 선택"></select><span class="wt"><input id="loanExtra" type="number" min="0" step="100000" value="300000" style="width:120px" aria-label="추가 상환액"></span><span class="xs muted">원/월 추가</span></div></div><div class="stack" id="loanOut"></div></div>
         <div class="grid g-2">
           <div class="card"><div class="card-head"><h3>스트레스 테스트</h3></div><div id="stressTbl"></div></div>
           <div class="card"><div class="card-head"><h3>집중도 · 노출</h3></div><div id="concTbl"></div></div>
@@ -443,7 +444,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 <div class="actions"><button class="btn" data-close>완료</button></div></div></dialog>
 <!-- holding dialog -->
 <dialog id="holdDlg" class="wide">
-  <form class="sheet" id="holdForm" method="dialog">
+  <form class="sheet" id="holdForm" method="dialog" novalidate>
     <h2 id="holdTitle">자산 추가</h2>
     <div class="fields">
       <label class="field">유형<select id="f-type"></select></label>
@@ -484,8 +485,8 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 
 <!-- tx dialog -->
 <dialog id="txDlg">
-  <form class="sheet" id="txForm" method="dialog">
-    <h2>거래 기록</h2>
+  <form class="sheet" id="txForm" method="dialog" novalidate>
+    <h2 id="txTitle">거래 기록</h2>
     <div class="fields">
       <label class="field">자산<select id="t-hid" required></select></label>
       <label class="field">종류<select id="t-kind">
@@ -570,7 +571,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.4.0";
+const APP_VERSION="3.5.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1259,10 +1260,12 @@ $("#priceBtn").onclick=()=>{if(!items.length){toast("자산이 없어요");retur
   $("#priceDlg").showModal();};
 
 /* ================= transactions ================= */
-function openTx(hid,kind,amount,memo){if(!items.length){toast("먼저 자산을 추가하세요");return;}
+let editingTx=null;
+function openTx(hid,kind,amount,memo,txId){if(!items.length){toast("먼저 자산을 추가하세요");return;}editingTx=txId||null;const et=txs.find(x=>x.id===txId);$("#txTitle").textContent=et?"거래 수정":"거래 기록";
   $("#t-hid").innerHTML=items.map(h=>`<option value="${esc(h.id)}">${esc(h.name)}${h.account?" · "+esc(h.account):""}</option>`).join("");
   if(hid)$("#t-hid").value=hid;$("#t-kind").value=kind||"buy";$("#t-date").value=today();
   ["t-qty","t-price"].forEach(i=>$("#"+i).value="");$("#t-fx").value=Math.round(fxRate("USD")*100)/100;taxTouched=false;$("#t-amount").value=amount||"";$("#t-fee").value=0;$("#t-tax").value=0;$("#t-memo").value=memo||"";$("#t-apply").checked=true;
+  if(et){$("#t-hid").value=et.hid;$("#t-kind").value=et.kind;$("#t-date").value=et.date;$("#t-qty").value=num(et.qty)||"";$("#t-price").value=num(et.price)||"";$("#t-amount").value=et.amount;$("#t-fee").value=num(et.fee);$("#t-tax").value=num(et.tax);$("#t-memo").value=et.memo||"";$("#t-apply").checked=et.applied!==false;if(num(et.fx)>100)$("#t-fx").value=et.fx;taxTouched=num(et.tax)!==Math.round(num(et.qty)*num(et.price)*TAXR().txTax);}
   syncTx();$("#txDlg").showModal();}
 let taxTouched=false;
 function autoTax(){if(taxTouched)return;const h=items.find(x=>x.id===$("#t-hid").value);const k=$("#t-kind").value;if(h&&k==="sell"&&h.currency==="KRW"&&h.type==="kstock"){$("#t-tax").value=Math.round(num($("#t-qty").value)*num($("#t-price").value)*TAXR().txTax);}else if(k!=="sell")$("#t-tax").value=0;}
@@ -1277,10 +1280,12 @@ $("#txForm").addEventListener("submit",e=>{e.preventDefault();const h=items.find
   const fee=num($("#t-fee").value),tax=num($("#t-tax").value);
   let amount=useQ?(k==="buy"?q*p+fee:q*p-fee-tax):num($("#t-amount").value);
   if(useQ&&!(q>0&&p>0)){toast("수량과 단가를 입력하세요");return;}if(!useQ&&!(amount>0)){toast("금액을 입력하세요");return;}
-  if(k==="sell"&&useQ&&q>num(h.qty)+1e-9){toast(`보유 수량(${num(h.qty)})보다 많이 팔 수 없어요`);return;}
-  const t={id:uid(),hid:h.id,hname:h.name,kind:k,date:$("#t-date").value||today(),qty:useQ?q:0,price:useQ?p:0,amount,fee,tax,memo:$("#t-memo").value.trim(),cur:h.currency,fx:h.currency==="USD"?(num($("#t-fx").value)||fxRate("USD")):1};
+  const old=editingTx?txs.find(x=>x.id===editingTx):null;if(old){snapUndo();reverseTx(old,items.find(x=>x.id===old.hid));txs=txs.filter(x=>x.id!==old.id);}
+  if(k==="sell"&&useQ&&q>num(h.qty)+1e-9){const avail=num(h.qty);if(old){applyTx(old,items.find(x=>x.id===old.hid));txs.push(old);}toast(`보유 수량(${avail})보다 많이 팔 수 없어요`);return;}
+  const t={id:old?old.id:uid(),hid:h.id,hname:h.name,kind:k,date:$("#t-date").value||today(),qty:useQ?q:0,price:useQ?p:0,amount,fee,tax,memo:$("#t-memo").value.trim(),cur:h.currency,fx:h.currency==="USD"?(num($("#t-fx").value)||fxRate("USD")):1};
   t.applied=$("#t-apply").checked;if(t.applied)applyTx(t,h);txs.push(t);persist();$("#txDlg").close();renderAll();
-  toast(t.realized!=null?`기록했어요 · 실현손익 ${t.realized>=0?"+":""}${won(rk(t))}원`:"기록했어요");});
+  txs.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);LS.set(K.tx,txs);
+  toast(t.realized!=null?`${old?"수정":"기록"}했어요 · 실현손익 ${t.realized>=0?"+":""}${won(rk(t))}원`:old?"수정했어요":"기록했어요",old?"되돌리기":null,old?undo:null);editingTx=null;});
 
 $("#priceForm").addEventListener("submit",e=>{e.preventDefault();$$("[data-pid]").forEach(i=>{const h=items.find(x=>x.id===i.dataset.pid);if(h&&num(i.value)>0&&num(i.value)!==num(h.price)){h.price=num(i.value);h.priceAt=today();}});$$("[data-vid]").forEach(i=>{const h=items.find(x=>x.id===i.dataset.vid);if(h&&i.value!==""&&num(i.value)!==num(h.value)){h.value=num(i.value);h.priceAt=today();}});persist();$("#priceDlg").close();renderAll();toast("시세·잔액을 반영했어요");});
 
@@ -1530,7 +1535,8 @@ function renderLedger(){const years=Array.from(new Set(txs.map(t=>t.date.slice(0
     ${list.map(t=>{const h=items.find(x=>x.id===t.hid);return `<tr style="cursor:default"><td class="num">${esc(t.date)}</td><td><span class="pill ${t.kind}">${KIND[t.kind]||t.kind}</span></td><td>${esc(h?.name||t.hname||"삭제된 자산")}${t.cur==="USD"?' <span class="pill">USD</span>':""}</td>
       <td class="r num">${num(t.qty)?num(t.qty).toLocaleString("ko-KR",{maximumFractionDigits:6}):"–"}</td><td class="r num">${num(t.price)?num(t.price).toLocaleString("ko-KR",{maximumFractionDigits:2}):"–"}</td><td class="r num">${num(t.amount).toLocaleString("ko-KR",{maximumFractionDigits:2})}</td>
       <td class="r num">${num(t.fee)+num(t.tax)?won(num(t.fee)+num(t.tax)):"–"}</td><td class="r num ${t.realized!=null?sgn(rk(t)):""}">${t.realized!=null?(rk(t)>=0?"+":"")+won(rk(t)):"–"}</td><td class="small muted" style="white-space:normal;min-width:120px">${esc(t.memo||"")}</td>
-      <td><button class="link small" data-deltx="${esc(t.id)}" style="color:var(--muted)">삭제</button></td></tr>`}).join("")}</tbody></table></div>`;
+      <td class="row" style="gap:10px">${t.kind!=="open"?`<button class="link small" data-edtx="${esc(t.id)}">수정</button>`:""}<button class="link small" data-deltx="${esc(t.id)}" style="color:var(--muted)">삭제</button></td></tr>`}).join("")}</tbody></table></div>`;
+  $$("[data-edtx]").forEach(b=>b.onclick=()=>openTx(null,null,null,null,b.dataset.edtx));
   $$("[data-deltx]").forEach(b=>b.onclick=async()=>{const t=txs.find(x=>x.id===b.dataset.deltx);const h=items.find(x=>x.id===t?.hid);if(await confirmBox("거래 삭제",h&&t.applied!==false&&!["open","dividend","interest"].includes(t.kind)?`이 거래가 '${h.name}'에 반영한 수량·금액도 함께 되돌려요.`:"원장에서 이 거래를 지워요.","삭제")){snapUndo();reverseTx(t,h);txs=txs.filter(x=>x.id!==t.id);persist();renderAll();toast("삭제했어요","되돌리기",undo);}});}
 
 /* ---- analytics ---- */
@@ -1560,7 +1566,7 @@ function renderAnalytics(t){const ps=perfStats(),mr=modelRisk(t),xr=portfolioXir
       <td class="r num">${Math.abs(amt)<1?"–":(amt>0?"+":"")+short(amt)}</td><td>${out?`<span class="chip ${d>0?"warn":"info"}">${d>0?"줄이기":"늘리기"}</span>`:'<span class="chip accent">밴드 안</span>'}</td></tr>`}).join("")}
     </tbody><tfoot><tr><td>합계</td><td class="r num">100%</td><td></td><td class="r num ${Math.abs(sumT-100)>.15?"neg":""}">${sumT.toFixed(1)}%</td><td colspan="3" class="small ${Math.abs(sumT-100)>.15?"neg":"muted"}">${Math.abs(sumT-100)>.15?"목표 비중 합계를 100%로 맞춰 주세요":"추천값은 투자 성향·나이·목표·시장 판단으로 계산돼요"}</td></tr></tfoot></table></div>`;
   $$("[data-tgt]").forEach(i=>i.onchange=()=>{const cur=targets(totals());cur[i.dataset.tgt]=Math.max(0,num(i.value));LS.set(K.targets,cur);renderAnalytics(totals());});
-  renderNewCash(t);
+  renderNewCash(t);renderLoan(t);
   /* stress */
   const SC=[{n:"주가 30% 급락",s:{equity:-.30,pension:-.15,alt:-.25,crypto:-.5}},{n:"금융위기형",s:{realty:-.15,equity:-.45,pension:-.22,alt:-.35,crypto:-.7,gold:.1,bond:.03},fx:.2},{n:"금리 1%p 급등",s:{realty:-.05,bond:-.05,equity:-.08,pension:-.04,alt:-.1}},{n:"원화 10% 강세",s:{},fx:-.1},{n:"인플레이션 쇼크",s:{equity:-.15,bond:-.08,fixed:-.0,pension:-.1,gold:.15,alt:.0}}];
   if(!t.value){$("#stressTbl").innerHTML=`<div class="empty">자산을 추가하면 계산돼요.</div>`;}
@@ -1575,6 +1581,18 @@ function renderAnalytics(t){const ps=perfStats(),mr=modelRisk(t),xr=portfolioXir
       <div class="tile"><div class="k">즉시 현금화 가능</div><div class="v num">${pctp(liq)}</div></div><div class="tile"><div class="k">절세 계좌 비중</div><div class="v num">${pctp(taxAdv)}</div><div class="n">ISA·연금·IRP</div></div><div class="tile"><div class="k">부채비율</div><div class="v num ${t.debt/t.value>.6?"neg":""}">${pctp(t.debt/t.value)}</div><div class="n">부채 ÷ 자산</div></div><div class="tile"><div class="k">연 이자 비용</div><div class="v num">${short(t.debtInterest)}원</div><div class="n">자산 기대수익 ${short(t.value*(mr0?mr0.mu:0))}원</div></div></div>
       <div class="stack" style="gap:6px">${top.map(h=>`<div class="row between small"><span>${esc(h.name)}</span><span class="num">${pctp(valKRW(h)/t.value)}</span></div><div class="progress" style="height:6px"><span style="width:${valKRW(h)/t.value*100}%;background:var(${TYPES[h.type]?.c})"></span></div>`).join("")}</div>`;}
 }
+function amort(bal,rate,pay,extra){const r=rate/100/12;let m=0,int=0;if(bal<=0)return {m:0,int:0};if(pay+extra<=bal*r+1e-9)return {m:null,int:null};while(bal>0.5&&m<600){const i=bal*r;int+=i;bal=bal+i-(pay+extra);m++;}return {m,int};}
+function renderLoan(t){const debts=items.filter(h=>isDebt(h)&&valKRW(h)>0);if(!debts.length){$("#loanOut").innerHTML=`<div class="empty">대출을 추가하면 중도상환 효과를 계산해요.</div>`;$("#loanSel").innerHTML="";return;}
+  if(!$("#loanSel").options.length||![...$("#loanSel").options].some(o=>debts.some(d=>d.id===o.value)))$("#loanSel").innerHTML=debts.map(h=>`<option value="${esc(h.id)}">${esc(h.name)} · ${num(h.rate).toFixed(2)}%</option>`).join("");
+  const h=debts.find(x=>x.id===$("#loanSel").value)||debts[0];const bal=valKRW(h),rate=num(h.rate),extra=num($("#loanExtra").value);let pay=num(h.monthly);const io=pay<=bal*rate/1200;
+  if(io)pay=bal*rate/1200;const base=amort(bal,rate,pay,0),w=amort(bal,rate,pay,extra);const mu=(modelRisk(t)?.mu||.04),afterTax=mu*(1-.154);
+  const inv=extra?(()=>{const n=base.m||w.m||120;const rr=afterTax/12;let v=0;for(let i=0;i<n;i++)v=v*(1+rr)+extra;return {v,paid:extra*n,n};})():null;
+  const fmtM=m=>m==null?"상환 불가":m>=600?"50년+":`${Math.floor(m/12)?Math.floor(m/12)+"년 ":""}${m%12?m%12+"개월":""}`||"0개월";
+  $("#loanOut").innerHTML=`<div class="split"><div class="tile"><div class="k">현재 조건 상환 기간</div><div class="v num">${io?"이자만 납부 중":fmtM(base.m)}</div><div class="n">${io?`월 이자 ${short(pay)}원 · 만기 일시상환`:`총 이자 ${short(base.int)}원`}</div></div>
+    <div class="tile"><div class="k">매달 ${short(extra)}원 더 갚으면</div><div class="v num pos">${extra?fmtM(w.m):"–"}</div><div class="n">${extra&&base.m&&w.m!=null?`${base.m-w.m}개월 단축 · 이자 ${short(Math.max(0,base.int-w.int))}원 절약`:extra&&io&&w.m!=null?`총 이자 ${short(w.int)}원으로 상환 완료`:"추가 상환액을 입력하세요"}</div></div>
+    <div class="tile"><div class="k">같은 돈을 투자하면</div><div class="v num">${inv?short(inv.v-inv.paid)+"원":"–"}</div><div class="n">${inv?`세후 연 ${pctp(afterTax,1)} 가정 · ${inv.n}개월 수익`:"포트폴리오 기대수익률 기준"}</div></div></div>
+    ${extra?`<div class="alert"><span class="dot" style="background:${rate/100>afterTax?"var(--good)":"var(--info)"}"></span><span>${rate/100>afterTax?`대출 금리 ${rate.toFixed(2)}%가 세후 기대수익률 ${pctp(afterTax,1)}보다 높아요. <b>상환이 확실히 유리</b>해요.`:`세후 기대수익률 ${pctp(afterTax,1)}이 대출 금리 ${rate.toFixed(2)}%보다 높아요. 수익은 보장되지 않으니 비상금과 안정성을 함께 고려하세요.`}${h.type==="mortgage"||h.type==="jeonseloan"?" 중도상환수수료(보통 3년 이내 1% 안팎)도 확인하세요.":""}</span></div>`:""}`;}
+$("#loanSel").addEventListener("change",()=>renderLoan(totals()));$("#loanExtra").addEventListener("input",()=>renderLoan(totals()));
 function renderNewCash(t){const amt=num($("#newCash").value);if(!amt){$("#newCashOut").innerHTML="";return;}const tg=targets(t);const tot=t.value+amt;
   const need=Object.keys(CLASSES).map(k=>({k,n:Math.max(0,num(tg[k])/100*tot-(t.byCls[k]||0))}));const sumN=need.reduce((s,x)=>s+x.n,0);
   const alloc=need.map(x=>({k:x.k,a:sumN?x.n/sumN*Math.min(amt,sumN)+(sumN<amt?num(tg[x.k])/100*(amt-sumN):0):num(tg[x.k])/100*amt})).filter(x=>x.a>=1);
