@@ -634,6 +634,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
       <div class="row between wrap"><span>은행·증권사 거래내역 CSV</span><label class="btn sm ghost" for="txCsvImp">거래내역 가져오기</label><input type="file" id="txCsvImp" accept=".csv,text/csv" hidden></div>
       <div class="row between wrap"><span>현재 화면 PDF 리포트</span><button class="btn sm ghost" data-print>인쇄 · PDF 저장</button></div>
       <div class="sec-title">자동 복원 지점</div><div class="stack" id="snapList"></div>
+      <div class="row between wrap"><span>데이터 점검 · 저장 공간</span><button class="btn sm ghost" data-open-health>점검하기</button></div>
       <div class="row between wrap"><span>예시 데이터</span><button class="btn sm ghost" id="exampleBtn">예시로 채우기</button></div>
       <div class="row between wrap"><span>모든 데이터 지우기</span><button class="btn sm danger" id="wipeBtn">지우기</button></div>
       <div class="tile"><div class="k">앱 버전</div><div class="v" id="verInfo"></div><div class="n" id="updInfo"></div></div>
@@ -656,6 +657,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 
 <dialog id="rpDlg" class="wide rp-dlg"><div class="sheet"><div id="rpBody" class="stack" style="gap:18px"></div><div class="actions"><button class="btn ghost" data-close>닫기</button><button class="btn" id="rpPrint">PDF로 저장 · 인쇄</button></div></div></dialog>
 <div id="lockScreen"><form id="lockForm" class="lock-card" novalidate><span class="logo" style="width:48px;height:48px;border-radius:14px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-5 4 4 7-8"/><path d="M15 8h5v5"/></svg></span><h2>자산 키움 노트</h2><div class="small muted">PIN을 입력하세요</div><input id="lockPin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" aria-label="PIN"><div class="small neg" id="lockMsg"></div><button class="btn" type="submit" style="width:100%">열기</button></form></div>
+<dialog id="healthDlg" class="wide"><div class="sheet"><h2>데이터 점검</h2><div class="stack" id="healthOut"></div><div class="actions"><button class="btn" data-close>닫기</button></div></div></dialog>
 <dialog id="guideDlg" class="wide"><div class="sheet"><h2>사용 설명서</h2><div class="stack" id="guideBody"></div><div class="xs muted">단축키는 ?, 전체 검색은 Ctrl+K</div><div class="actions"><button class="btn" data-close>닫기</button></div></div></dialog>
 <dialog id="fixDlg"><form class="sheet" id="fixForm" method="dialog" novalidate><h2 id="fxTitle">고정지출 추가</h2><div class="fields">
   <label class="field">이름<input id="fx-name" placeholder="예: 실손보험, 넷플릭스"></label>
@@ -681,7 +683,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.17.0";
+const APP_VERSION="3.18.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1146,8 +1148,8 @@ const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0};
 const sgn=x=>x>=0?"pos":"neg";
 function toast(t,act,fn){const el=$("#toast");el.textContent=t;el.classList.toggle("act",!!act);if(act){const b=document.createElement("button");b.textContent=act;b.className="toast-btn";b.onclick=()=>{el.classList.remove("show");fn();};el.appendChild(b);}
   el.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("show"),act?6000:2400)}
-let UNDO=null;function snapUndo(){UNDO=JSON.stringify({items,txs,goals});}
-function undo(){if(!UNDO)return;const d=JSON.parse(UNDO);items=d.items;txs=d.txs;goals=d.goals;LS.set(K.goals,goals);persist();renderAll();UNDO=null;toast("되돌렸어요");}
+let UNDO=null;const UNDOS=[];function snapUndo(){UNDO=JSON.stringify({items,txs,goals});UNDOS.push(UNDO);if(UNDOS.length>10)UNDOS.shift();}
+function undo(){const u=UNDOS.pop();if(!u){toast("되돌릴 작업이 없어요");return;}const d=JSON.parse(u);items=d.items;txs=d.txs;goals=d.goals;LS.set(K.goals,goals);persist();renderAll();UNDO=UNDOS.length?UNDOS[UNDOS.length-1]:null;toast(UNDOS.length?`되돌렸어요 · ${UNDOS.length}단계 더 가능 (Ctrl+Z)`:"되돌렸어요");}
 
 /* 자산 유형: mode = amount(금액) | qty(수량) | both(선택) | debt(부채) */
 const TYPES={
@@ -2158,6 +2160,23 @@ $("#bkLoad").onclick=async()=>{if(!(await bkPerm(true))){toast("폴더 접근을
   if(await confirmBox("백업 폴더에서 불러오기",`${v.savedAt?new Date(v.savedAt).toLocaleString("ko-KR")+"에 저장된 ":""}백업(자산 ${(v.holdings||[]).length}개 · 거래 ${(v.transactions||[]).length}건)으로 바꿀까요?`,"불러오기")){applyBackup(v);toast("백업 폴더에서 불러왔어요","되돌리기",undo);}}catch(e){toast("백업 파일이 없거나 읽지 못했어요");}};
 (async()=>{if(!fsOK)return;bkDir=await idbGet("dir");if(bkDir){const last=LS.get("jasan-bk-last",0);if(Date.now()-last>6*3600e3)setTimeout(()=>writeBackup(false),2500);else{bkState=(await bkPerm(false))?"ok":"needperm";}}})();
 
+/* ================= data health check ================= */
+function healthIssues(){const out=[];const ids=new Set(items.map(h=>h.id));
+  const orphan=txs.filter(t=>t.hid&&!ids.has(t.hid)&&t.kind!=="open");if(orphan.length)out.push({k:"orphan",t:`삭제된 자산을 가리키는 거래 ${orphan.length}건`,d:"원장에는 남아 있지만 수익률·세금 계산에서 혼란을 줄 수 있어요.",fix:"정리",f:()=>{txs=txs.filter(t=>!t.hid||ids.has(t.hid)||t.kind==="open");}});
+  const orphOpen=txs.filter(t=>t.kind==="open"&&!ids.has(t.hid));if(orphOpen.length)out.push({k:"oopen",t:`삭제된 자산의 보유 시작 기록 ${orphOpen.length}건`,d:"투입 원금 계산(XIRR)에 남아 수익률을 왜곡해요.",fix:"정리",f:()=>{txs=txs.filter(t=>!(t.kind==="open"&&!ids.has(t.hid)));}});
+  const seen={},dups=[];txs.forEach(t=>{if(t.kind==="open")return;const k=[t.hid,t.date,t.kind,Math.round(num(t.amount)),num(t.qty)].join("|");if(seen[k])dups.push(t);else seen[k]=1;});if(dups.length)out.push({k:"dup",t:`똑같은 거래로 보이는 기록 ${dups.length}건`,d:"같은 날·같은 자산·같은 금액의 거래예요. 실제 중복이면 정리하세요(보유 수량은 바뀌지 않아요).",fix:"중복 정리",f:()=>{const del=new Set(dups.map(x=>x.id));txs=txs.filter(t=>!del.has(t.id));}});
+  const stale=items.filter(h=>isSec(h)&&(!h.priceAt||days(h.priceAt,today())>14));if(stale.length)out.push({k:"stale",t:`현재가가 2주 넘게 그대로인 종목 ${stale.length}개`,d:stale.slice(0,4).map(h=>esc(h.name)).join(", "),fix:"일괄 업데이트",f:null,go:()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),80);}});
+  const zero=items.filter(h=>!isDebt(h)&&valKRW(h)<=0);if(zero.length)out.push({k:"zero",t:`평가액이 0원인 자산 ${zero.length}개`,d:zero.slice(0,4).map(h=>esc(h.name)).join(", ")+" · 해지했다면 삭제하세요.",fix:null});
+  const past=items.filter(h=>h.maturity&&!isDebt(h)&&h.maturity<today());if(past.length)out.push({k:"mat",t:`만기가 지난 상품 ${past.length}개`,d:past.slice(0,4).map(h=>esc(h.name)).join(", ")+" · 재예치했다면 만기일을 고치고, 해지했다면 삭제하세요.",fix:null});
+  const noAcct=items.filter(h=>!h.account&&!isDebt(h)&&!["lease","realestate"].includes(h.type));if(noAcct.length>=3)out.push({k:"acct",t:`계좌가 비어 있는 자산 ${noAcct.length}개`,d:"계좌(ISA·연금저축 등)를 넣으면 절세 계좌 분석과 세금 계산이 정확해져요.",fix:null});
+  return out;}
+function storageInfo(){let n=0;try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith("jasan"))n+=(localStorage.getItem(k)||"").length*2;}}catch(e){}return n;}
+function renderHealth(){const is=healthIssues();const used=storageInfo();
+  $("#healthOut").innerHTML=(is.length?is.map((x,i)=>`<div class="alert"><span class="dot" style="background:var(--warn)"></span><span style="flex:1"><b>${x.t}</b><br><span class="small ink2">${x.d}</span></span>${x.fix?`<button class="btn sm ghost" data-hfix="${i}">${x.fix}</button>`:""}</div>`).join(""):'<div class="alert"><span class="dot" style="background:var(--good)"></span><span>문제가 발견되지 않았어요.</span></div>')+
+   `<div class="row between small" style="margin-top:6px"><span class="muted">저장 공간 사용량</span><span class="num">${(used/1048576).toFixed(2)} MB / 약 5 MB</span></div><div class="progress" style="height:6px"><span style="width:${Math.min(100,used/5242880*100)}%;background:var(${used>4e6?"--bad":used>2.5e6?"--warn":"--good"})"></span></div>${used>3e6?'<div class="xs muted">공간이 부족해지면 오래된 복원 지점부터 줄어들어요. 백업 폴더를 연결해 두세요.</div>':""}`;
+  $$("[data-hfix]").forEach(b=>b.onclick=()=>{const x=is[+b.dataset.hfix];if(x.go){$("#healthDlg").close();x.go();return;}snapUndo();x.f();persist();renderAll();renderHealth();toast("정리했어요","되돌리기",undo);});}
+$$("[data-open-health]").forEach(b=>b.onclick=()=>{$("#setDlg").open&&$("#setDlg").close();renderHealth();$("#healthDlg").showModal();});
+
 /* ================= in-app guide ================= */
 const GUIDE_SECTIONS=[
  ["처음 시작하기",["왼쪽 아래 '내 정보 · 연봉'에서 연봉과 생활비를 입력하세요. 실수령액, 4대보험, 세금, 월급 배분이 모두 이 값으로 계산돼요.","자산 화면의 [+ 현금·입출금] [+ 투자] 같은 버튼으로 월급통장부터 하나씩 추가하세요. 유형에 맞는 입력 칸만 나와요.","설정 > 예시로 채우기를 누르면 화면 구성을 미리 볼 수 있어요. 실제 사용 전에 '모든 데이터 지우기'로 지우세요."]],
@@ -2207,7 +2226,7 @@ $("#cmapOk").onclick=()=>{const {out}=csvBuild();if(!out.length){toast("가져�
   persist();$("#cmapDlg").close();renderAll();toast(`거래 ${out.length}건을 가져왔어요`,"되돌리기",undo);};
 
 /* ================= command palette ================= */
-function cmdItems(){const acts=[["자산 추가 (N)",()=>openHolding()],["거래 기록 (T)",()=>openTx()],["시세·잔액 일괄 업데이트",()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),60);}],["연봉 · 내 정보 수정",()=>openProfile()],["월간 결산 기록",()=>{location.hash="#salary";setTimeout(()=>$("#fl-income").focus(),80);}],["목표 추가",()=>openGoal()],["고정지출 추가",()=>openFix()],["내 집 마련 플래너",()=>{location.hash="#grow";setTimeout(()=>$("#hbOut").scrollIntoView({behavior:"smooth"}),120);}],["노후 준비 계산기",()=>{location.hash="#grow";setTimeout(()=>$("#retOut").scrollIntoView({behavior:"smooth"}),120);}],["백업 내보내기",()=>$("#expBtn").click()],["현재 화면 PDF 저장",()=>$("[data-print]").click()],["환율 지금 갱신",()=>refreshFx(true)],["설정 열기",()=>$("[data-open-settings]").click()],["사용 설명서",()=>$("#guideDlg").showModal()],["월간 리포트",()=>openReport()],["지금 화면 잠그기",()=>lockNow()],["바탕화면 알림 설정",()=>$("[data-open-settings]").click()]];
+function cmdItems(){const acts=[["자산 추가 (N)",()=>openHolding()],["거래 기록 (T)",()=>openTx()],["시세·잔액 일괄 업데이트",()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),60);}],["연봉 · 내 정보 수정",()=>openProfile()],["월간 결산 기록",()=>{location.hash="#salary";setTimeout(()=>$("#fl-income").focus(),80);}],["목표 추가",()=>openGoal()],["고정지출 추가",()=>openFix()],["내 집 마련 플래너",()=>{location.hash="#grow";setTimeout(()=>$("#hbOut").scrollIntoView({behavior:"smooth"}),120);}],["노후 준비 계산기",()=>{location.hash="#grow";setTimeout(()=>$("#retOut").scrollIntoView({behavior:"smooth"}),120);}],["백업 내보내기",()=>$("#expBtn").click()],["현재 화면 PDF 저장",()=>$("[data-print]").click()],["환율 지금 갱신",()=>refreshFx(true)],["설정 열기",()=>$("[data-open-settings]").click()],["사용 설명서",()=>$("#guideDlg").showModal()],["월간 리포트",()=>openReport()],["데이터 점검",()=>{renderHealth();$("#healthDlg").showModal();}],["지금 화면 잠그기",()=>lockNow()],["바탕화면 알림 설정",()=>$("[data-open-settings]").click()]];
   return [...PAGES.map(([k,l])=>({g:"화면",l:l+" 화면으로",f:()=>location.hash="#"+k})),...acts.map(([l,f])=>({g:"동작",l,f})),...items.map(h=>({g:TYPES[h.type].label,l:h.name+(h.account?" · "+h.account:""),f:()=>openDetail(h.id),v:valKRW(h)}))];}
 let cmdSel=0,cmdList=[];
 function renderCmd(){const q=$("#cmdQ").value.trim().toLowerCase();cmdList=cmdItems().filter(x=>!q||(x.l+" "+x.g).toLowerCase().includes(q)).slice(0,12);cmdSel=Math.min(cmdSel,Math.max(0,cmdList.length-1));
