@@ -294,7 +294,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 
       <!-- ASSETS -->
       <section class="page" id="p-assets" hidden>
-        <div class="page-head"><div><h1>보유 자산</h1><div class="sub">행을 누르면 수정, 거래 기록은 <span class="kbd">T</span></div></div>
+        <div class="page-head"><div><h1>보유 자산</h1><div class="sub">행을 누르면 상세 · 거래 기록은 <span class="kbd">T</span> · 검색은 <span class="kbd">Ctrl K</span></div></div>
           <div class="row wrap"><button class="btn ghost" id="priceBtn">시세·잔액 일괄 업데이트</button><button class="btn ghost" data-add-tx>거래 기록</button><button class="btn" data-add>＋ 자산 추가</button></div></div>
         <div class="kpis" id="aSummary"></div>
         <div class="row wrap" id="aQuick" style="gap:6px"></div>
@@ -336,6 +336,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
           <div class="row wrap" style="gap:10px"><span class="small ink2">신규 자금</span><span class="wt"><input id="newCash" type="number" min="0" step="100000" style="width:140px" aria-label="신규 자금"></span><span class="small ink2">원을 넣는다면</span></div>
           <div id="newCashOut"></div>
         </div>
+        <div class="card"><div class="card-head"><h3>수익 기여도</h3><span class="xs muted">평가손익 + 실현손익 + 배당·이자 = 총수익</span></div><div class="stack" id="contribOut"></div></div>
         <div class="card"><div class="card-head"><h3>대출 중도상환 시뮬레이터</h3><div class="row wrap" style="gap:8px"><select id="loanSel" class="btn ghost sm" aria-label="대출 선택"></select><span class="wt"><input id="loanExtra" type="number" min="0" step="100000" value="300000" style="width:120px" aria-label="추가 상환액"></span><span class="xs muted">원/월 추가</span></div></div><div class="stack" id="loanOut"></div></div>
         <div class="grid g-2">
           <div class="card"><div class="card-head"><h3>스트레스 테스트</h3></div><div id="stressTbl"></div></div>
@@ -571,6 +572,8 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
     <div class="row between"><span>이 도움말</span><span class="kbd">?</span></div>
   </div><div class="actions"><button class="btn ghost" data-close>닫기</button></div></div></dialog>
 
+<dialog id="detDlg" class="wide"><div class="sheet"><h2 class="row" id="detTitle" style="gap:12px"></h2><div class="split" id="detTiles"></div><div class="sec-title">거래 내역</div><div id="detTx"></div>
+  <div class="actions"><button class="btn ghost" data-close>닫기</button><span class="grow"></span><button class="btn ghost" id="detTx2">거래 기록</button><button class="btn" id="detEdit">자산 수정</button></div></div></dialog>
 <dialog id="cmapDlg" class="wide"><div class="sheet"><h2>거래내역 가져오기</h2><div class="xs muted" id="cmapInfo"></div>
   <div class="note">은행·증권사 앱에서 내려받은 거래내역 CSV의 열을 맞춰 주세요. 머리글을 보고 자동으로 골라 두었어요. 엑셀(xlsx) 파일은 'CSV로 저장' 후 불러오세요.</div>
   <div class="fields"><label class="field">어느 자산의 거래인가요<select id="cm-target"></select></label></div>
@@ -584,7 +587,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.7.0";
+const APP_VERSION="3.8.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1160,6 +1163,10 @@ function xirr(flows){/* flows: [{d,a}] */
 function portfolioXirr(t){const fl=txs.map(x=>({d:x.date,a:txFlow(x)})).filter(f=>f.a!==0);if(!fl.length)return null;fl.push({d:today(),a:t.value});
   const span=days(fl.reduce((m,f)=>f.d<m?f.d:m,fl[0].d),today());return {r:xirr(fl),span};}
 
+/* per-holding total return */
+function holdingReturn(h){const own=txs.filter(t=>t.hid===h.id);const realized=own.filter(t=>t.realized!=null).reduce((s,t)=>s+rk(t),0);const income=own.filter(t=>["dividend","interest"].includes(t.kind)).reduce((s,t)=>s+(num(t.amount)-num(t.tax))*txFx(t),0);
+  const unreal=isDebt(h)?0:valKRW(h)-costKRW(h);return {unreal,realized,income,total:unreal+realized+income,fx:fxGainKRW(h),n:own.filter(t=>t.kind!=="open").length};}
+
 /* ================= history & performance ================= */
 function recordHistory(){const t=totals();const d=today();hist=hist.filter(h=>h.d!==d);
   if(t.value>0||hist.length)hist.push({d,v:Math.round(t.value),n:Math.round(t.net),p:Math.round(t.cost),f:Math.round(netInvested(d)),cls:Object.fromEntries(Object.entries(t.byCls).map(([k,v])=>[k,Math.round(v)]))});
@@ -1255,6 +1262,22 @@ $("#holdForm").addEventListener("submit",e=>{e.preventDefault();
 $("#holdDel").onclick=async()=>{const h=items.find(x=>x.id===editingId);$("#holdDlg").close();
   if(await confirmBox("자산 삭제",`'${h?.name}'을(를) 삭제할까요? 거래 원장 기록은 남겨 둬요.`,"삭제")){snapUndo();items=items.filter(x=>x.id!==editingId);persist();renderAll();toast("삭제했어요","되돌리기",undo);}};
 function persist(){LS.set(K.hold,items);LS.set(K.tx,txs);recordHistory();dailySnap();}
+
+/* ================= holding detail ================= */
+let detailId=null;
+function openDetail(id){const h=items.find(x=>x.id===id);if(!h)return;detailId=id;const t=totals();const r=holdingReturn(h),T=TYPES[h.type],debt=isDebt(h);const v=valKRW(h),c=costKRW(h);const me=maturityEst(h);
+  $("#detTitle").innerHTML=`${avatar(h.type)}<span style="min-width:0"><span style="display:block">${esc(h.name)}</span><span class="xs muted" style="font-weight:500">${T.label}${h.account?" · "+esc(h.account):""}${h.ticker?" · "+esc(h.ticker):""}${h.currency!=="KRW"?" · "+h.currency:""}</span></span>`;
+  const tiles=debt?[["대출 잔액",won(v)+"원","neg",`최초 ${short(num(h.principal))}원`],["금리",num(h.rate).toFixed(2)+"%","",`연 이자 약 ${short(v*num(h.rate)/100)}원`],["월 상환",short(num(h.monthly))+"원","",h.autopay?"월급날 자동 상환":"수동"],["만기",h.maturity||"–","",h.maturity?`D-${Math.max(0,Math.ceil(days(today(),h.maturity)))}`:""]]
+   :[["평가액",won(v)+"원","",`비중 ${t.value?pctp(v/t.value):"–"}`],["평가손익",(r.unreal>=0?"+":"")+won(r.unreal)+"원",sgn(r.unreal),c?pct(r.unreal/c,2):""],["총수익",(r.total>=0?"+":"")+won(r.total)+"원",sgn(r.total),`실현 ${short(r.realized)} · 배당·이자 ${short(r.income)}`],
+     isSec(h)?["보유",`${num(h.qty).toLocaleString("ko-KR",{maximumFractionDigits:6})}${h.type==="crypto"?"개":"주"}`,"",`평단 ${num(h.avg).toLocaleString("ko-KR",{maximumFractionDigits:2})} → 현재 ${num(h.price).toLocaleString("ko-KR",{maximumFractionDigits:2})}`]:["금리·기대수익",num(h.rate).toFixed(2)+"%","",me?`만기 예상 ${short(me.amt)}원 (세후)`:h.monthly?`월 ${short(h.monthly)}원${h.autopay?" 자동":""}`:""]];
+  if(r.fx)tiles.push(["환차손익",(r.fx>=0?"+":"")+won(r.fx)+"원",sgn(r.fx),`매입 ${num(h.avgFx).toFixed(2)} → 현재 ${fxRate(h.currency).toFixed(2)}`]);
+  $("#detTiles").innerHTML=tiles.map(([k,v_,cls,n])=>`<div class="tile"><div class="k">${k}</div><div class="v num ${cls}">${v_}</div><div class="n">${n||""}</div></div>`).join("");
+  const own=txs.filter(x=>x.hid===id).sort((a,b)=>a.date<b.date?1:-1);
+  $("#detTx").innerHTML=own.length?`<div class="tablewrap"><table class="dense" style="min-width:420px"><tbody>${own.slice(0,30).map(x=>`<tr style="cursor:default"><td class="num">${x.date}</td><td><span class="pill ${x.kind}">${KIND[x.kind]||x.kind}</span></td><td class="r num">${num(x.qty)?num(x.qty).toLocaleString("ko-KR"):""}</td><td class="r num">${won(x.amount)}</td><td class="r num ${x.realized!=null?sgn(rk(x)):""}">${x.realized!=null?(rk(x)>=0?"+":"")+short(rk(x)):""}</td><td class="small muted">${esc(x.memo||"")}</td><td>${x.kind!=="open"?`<button class="link small" data-detedit="${esc(x.id)}">수정</button>`:""}</td></tr>`).join("")}</tbody></table></div>${own.length>30?`<div class="xs muted">최근 30건만 표시 · 전체는 원장에서</div>`:""}`:'<div class="note">거래 기록이 없어요.</div>';
+  $$("[data-detedit]").forEach(b=>b.onclick=()=>{$("#detDlg").close();openTx(null,null,null,null,b.dataset.detedit);});
+  $("#detDlg").showModal();}
+$("#detEdit").onclick=()=>{$("#detDlg").close();openHolding(detailId);};
+$("#detTx2").onclick=()=>{$("#detDlg").close();const h=items.find(x=>x.id===detailId);openTx(detailId,h&&isDebt(h)?"repay":isSec(h||{})?"buy":"deposit");};
 
 /* ================= auto contributions ================= */
 function runAutopay(){const pd=Math.min(28,Math.max(1,num(PROFILE.payday)||25));let n=0;const td=today();
@@ -1533,7 +1556,7 @@ function renderAssets(t){$$("#aView button").forEach(b=>b.setAttribute("aria-pre
     $("#aBody").innerHTML=`<div class="tablewrap"><table class="dense"><thead><tr>${th("name","종목·상품")}${th("acct","계좌")}${th("type","유형")}<th class="r">수량</th><th class="r">평단</th><th class="r">현재가</th>${th("cost","원금(원)",1)}${th("krw","평가액(원)",1)}${th("gain","손익(원)",1)}${th("ret","수익률",1)}${th("fxg","환차손익",1)}${th("w","비중",1)}${th("rate","금리·기대%",1)}</tr></thead><tbody>${body}</tbody>
       <tfoot><tr><td class="sticky-col" colspan="3">자산 합계 (${assetRows.length})${t.debt?` · 순자산 <b>${won(t.net)}</b>원`:""}</td><td></td><td></td><td></td><td class="r num">${won(sum.cost)}</td><td class="r num">${won(sum.krw)}</td><td class="r num ${sgn(sum.krw-sum.cost)}">${sum.krw-sum.cost>=0?"+":""}${won(sum.krw-sum.cost)}</td><td class="r num">${sum.cost?pct((sum.krw-sum.cost)/sum.cost,2):"–"}</td><td></td><td class="r num">${t.value?pctp(sum.krw/t.value):"–"}</td><td></td></tr></tfoot></table></div>`;
     $$("#aBody th[data-k]").forEach(th=>th.onclick=()=>{const kk=th.dataset.k;if(UI.sortK===kk)UI.sortD*=-1;else{UI.sortK=kk;UI.sortD=["name","acct","type"].includes(kk)?1:-1;}saveUI();renderAssets(totals());});}
-  $$("[data-edit]").forEach(b=>b.onclick=()=>openHolding(b.dataset.edit));}
+  $$("[data-edit]").forEach(b=>b.onclick=()=>openDetail(b.dataset.edit));}
 $("#aGroup").onchange=()=>{UI.grouped=$("#aGroup").checked;saveUI();renderAssets(totals());};
 
 /* ---- ledger ---- */
@@ -1583,7 +1606,7 @@ function renderAnalytics(t){const ps=perfStats(),mr=modelRisk(t),xr=portfolioXir
       <td class="r num">${Math.abs(amt)<1?"–":(amt>0?"+":"")+short(amt)}</td><td>${out?`<span class="chip ${d>0?"warn":"info"}">${d>0?"줄이기":"늘리기"}</span>`:'<span class="chip accent">밴드 안</span>'}</td></tr>`}).join("")}
     </tbody><tfoot><tr><td>합계</td><td class="r num">100%</td><td></td><td class="r num ${Math.abs(sumT-100)>.15?"neg":""}">${sumT.toFixed(1)}%</td><td colspan="3" class="small ${Math.abs(sumT-100)>.15?"neg":"muted"}">${Math.abs(sumT-100)>.15?"목표 비중 합계를 100%로 맞춰 주세요":"추천값은 투자 성향·나이·목표·시장 판단으로 계산돼요"}</td></tr></tfoot></table></div>`;
   $$("[data-tgt]").forEach(i=>i.onchange=()=>{const cur=targets(totals());cur[i.dataset.tgt]=Math.max(0,num(i.value));LS.set(K.targets,cur);renderAnalytics(totals());});
-  renderNewCash(t);renderLoan(t);
+  renderNewCash(t);renderLoan(t);renderContrib(t);
   /* stress */
   const SC=[{n:"주가 30% 급락",s:{equity:-.30,pension:-.15,alt:-.25,crypto:-.5}},{n:"금융위기형",s:{realty:-.15,equity:-.45,pension:-.22,alt:-.35,crypto:-.7,gold:.1,bond:.03},fx:.2},{n:"금리 1%p 급등",s:{realty:-.05,bond:-.05,equity:-.08,pension:-.04,alt:-.1}},{n:"원화 10% 강세",s:{},fx:-.1},{n:"인플레이션 쇼크",s:{equity:-.15,bond:-.08,fixed:-.0,pension:-.1,gold:.15,alt:.0}}];
   if(!t.value){$("#stressTbl").innerHTML=`<div class="empty">자산을 추가하면 계산돼요.</div>`;}
@@ -1598,6 +1621,15 @@ function renderAnalytics(t){const ps=perfStats(),mr=modelRisk(t),xr=portfolioXir
       <div class="tile"><div class="k">즉시 현금화 가능</div><div class="v num">${pctp(liq)}</div></div><div class="tile"><div class="k">절세 계좌 비중</div><div class="v num">${pctp(taxAdv)}</div><div class="n">ISA·연금·IRP</div></div><div class="tile"><div class="k">부채비율</div><div class="v num ${t.debt/t.value>.6?"neg":""}">${pctp(t.debt/t.value)}</div><div class="n">부채 ÷ 자산</div></div><div class="tile"><div class="k">연 이자 비용</div><div class="v num">${short(t.debtInterest)}원</div><div class="n">자산 기대수익 ${short(t.value*(mr0?mr0.mu:0))}원</div></div></div>
       <div class="stack" style="gap:6px">${top.map(h=>`<div class="row between small"><span>${esc(h.name)}</span><span class="num">${pctp(valKRW(h)/t.value)}</span></div><div class="progress" style="height:6px"><span style="width:${valKRW(h)/t.value*100}%;background:var(${TYPES[h.type]?.c})"></span></div>`).join("")}</div>`;}
 }
+function renderContrib(t){const rows=items.filter(h=>!isDebt(h)).map(h=>({h,...holdingReturn(h)})).filter(r=>Math.abs(r.total)>=1).sort((a,b)=>b.total-a.total);
+  if(!rows.length){$("#contribOut").innerHTML=`<div class="empty">수익이 생기면 자산별 기여도를 보여드려요.</div>`;return;}const tot=rows.reduce((s,r)=>s+r.total,0);const mx=Math.max(...rows.map(r=>Math.abs(r.total)));
+  const byCls={};rows.forEach(r=>{const c=clsOf(r.h);byCls[c]=(byCls[c]||0)+r.total;});
+  $("#contribOut").innerHTML=`<div class="row wrap" style="gap:8px">${Object.entries(byCls).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<span class="chip"><span class="badge-dot" style="background:var(${CLASSES[c].c})"></span>${CLASSES[c].label} <b class="num ${sgn(v)}">${v>=0?"+":""}${short(v)}</b></span>`).join("")}</div>
+   <div class="tablewrap"><table class="dense" style="min-width:640px"><thead><tr><th>자산</th><th style="width:26%"></th><th class="r">평가손익</th><th class="r">실현손익</th><th class="r">배당·이자</th><th class="r">총수익</th><th class="r">기여도</th></tr></thead><tbody>
+   ${rows.map(r=>`<tr data-detail="${esc(r.h.id)}"><td><b>${esc(r.h.name)}</b>${r.fx?` <span class="xs muted">환차 ${r.fx>=0?"+":""}${short(r.fx)}</span>`:""}</td><td><div class="meter"><span style="left:${r.total>=0?50:50-Math.abs(r.total)/mx*50}%;width:${Math.abs(r.total)/mx*50}%;background:var(${r.total>=0?"--good":"--bad"})"></span><i class="tgt" style="left:50%"></i></div></td>
+     <td class="r num ${sgn(r.unreal)}">${won(r.unreal)}</td><td class="r num ${r.realized?sgn(r.realized):"muted"}">${r.realized?won(r.realized):"–"}</td><td class="r num ${r.income?"pos":"muted"}">${r.income?won(r.income):"–"}</td><td class="r num ${sgn(r.total)}"><b>${r.total>=0?"+":""}${won(r.total)}</b></td><td class="r num">${tot?pctp(r.total/tot,0):"–"}</td></tr>`).join("")}</tbody>
+   <tfoot><tr><td>합계</td><td></td><td class="r num">${won(rows.reduce((s,r)=>s+r.unreal,0))}</td><td class="r num">${won(rows.reduce((s,r)=>s+r.realized,0))}</td><td class="r num">${won(rows.reduce((s,r)=>s+r.income,0))}</td><td class="r num ${sgn(tot)}">${tot>=0?"+":""}${won(tot)}</td><td></td></tr></tfoot></table></div>`;
+  $$("#contribOut [data-detail]").forEach(r=>r.onclick=()=>openDetail(r.dataset.detail));}
 function amort(bal,rate,pay,extra){const r=rate/100/12;let m=0,int=0;if(bal<=0)return {m:0,int:0};if(pay+extra<=bal*r+1e-9)return {m:null,int:null};while(bal>0.5&&m<600){const i=bal*r;int+=i;bal=bal+i-(pay+extra);m++;}return {m,int};}
 function renderLoan(t){const debts=items.filter(h=>isDebt(h)&&valKRW(h)>0);if(!debts.length){$("#loanOut").innerHTML=`<div class="empty">대출을 추가하면 중도상환 효과를 계산해요.</div>`;$("#loanSel").innerHTML="";return;}
   if(!$("#loanSel").options.length||![...$("#loanSel").options].some(o=>debts.some(d=>d.id===o.value)))$("#loanSel").innerHTML=debts.map(h=>`<option value="${esc(h.id)}">${esc(h.name)} · ${num(h.rate).toFixed(2)}%</option>`).join("");
@@ -1893,7 +1925,7 @@ $("#cmapOk").onclick=()=>{const {out}=csvBuild();if(!out.length){toast("가져�
 
 /* ================= command palette ================= */
 function cmdItems(){const acts=[["자산 추가 (N)",()=>openHolding()],["거래 기록 (T)",()=>openTx()],["시세·잔액 일괄 업데이트",()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),60);}],["연봉 · 내 정보 수정",()=>openProfile()],["월간 결산 기록",()=>{location.hash="#salary";setTimeout(()=>$("#fl-income").focus(),80);}],["목표 추가",()=>openGoal()],["백업 내보내기",()=>$("#expBtn").click()],["현재 화면 PDF 저장",()=>$("[data-print]").click()],["환율 지금 갱신",()=>refreshFx(true)],["설정 열기",()=>$("[data-open-settings]").click()]];
-  return [...PAGES.map(([k,l])=>({g:"화면",l:l+" 화면으로",f:()=>location.hash="#"+k})),...acts.map(([l,f])=>({g:"동작",l,f})),...items.map(h=>({g:TYPES[h.type].label,l:h.name+(h.account?" · "+h.account:""),f:()=>openHolding(h.id),v:valKRW(h)}))];}
+  return [...PAGES.map(([k,l])=>({g:"화면",l:l+" 화면으로",f:()=>location.hash="#"+k})),...acts.map(([l,f])=>({g:"동작",l,f})),...items.map(h=>({g:TYPES[h.type].label,l:h.name+(h.account?" · "+h.account:""),f:()=>openDetail(h.id),v:valKRW(h)}))];}
 let cmdSel=0,cmdList=[];
 function renderCmd(){const q=$("#cmdQ").value.trim().toLowerCase();cmdList=cmdItems().filter(x=>!q||(x.l+" "+x.g).toLowerCase().includes(q)).slice(0,12);cmdSel=Math.min(cmdSel,Math.max(0,cmdList.length-1));
   $("#cmdList").innerHTML=cmdList.length?cmdList.map((x,i)=>`<button class="item cmd ${i===cmdSel?"sel":""}" data-ci="${i}"><span class="pill">${esc(x.g)}</span><span class="main name">${esc(x.l)}</span>${x.v!=null?`<span class="num small muted">${short(x.v)}원</span>`:""}</button>`).join(""):'<div class="note">찾는 항목이 없어요.</div>';
