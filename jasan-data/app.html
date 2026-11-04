@@ -249,6 +249,11 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 .item.cmd{padding:10px 8px;gap:10px}.item.cmd.sel{background:var(--accent-soft)}
 .item.cmd .main{flex:1;min-width:0;font-weight:550}
 .page-head .sub b{font-weight:650}
+
+details.gd{border-radius:14px;background:var(--surface-2);padding:12px 16px}
+details.gd summary{cursor:pointer;font-weight:650}
+details.gd ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--ink-2)}
+#guideDlg .sheet{max-height:88vh;overflow:auto}
 </style>
 </head>
 <body>
@@ -259,6 +264,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
     <nav class="stack" style="gap:2px" id="sideNav"></nav>
     <div class="spacer"></div>
     <button class="nav-item" data-open-profile><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>내 정보 · 연봉</button>
+    <button class="nav-item" data-open-guide><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg>사용 설명서</button>
     <button class="nav-item" data-open-help><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>단축키</button>
     <button class="nav-item" data-open-settings><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>설정</button>
     <div class="xs muted" style="padding:6px 12px" id="verSide"></div>
@@ -578,6 +584,8 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
     <h2>설정</h2>
     <div class="stack">
       <div class="row between wrap"><span>화면 테마</span><div class="seg" id="themeSeg"><button data-theme-set="system">시스템</button><button data-theme-set="light">라이트</button><button data-theme-set="dark">다크</button></div></div>
+      <div class="row between wrap"><span>바탕화면 알림</span><button class="btn sm ghost" id="notifyBtn">켜기</button></div>
+      <div class="xs muted" id="notifyNote"></div>
       <div class="row between wrap"><span>원/달러 환율</span><div class="row"><span class="wt"><input id="fxInput" type="number" min="100" step="1" style="width:110px" aria-label="환율"></span><button class="btn sm ghost" id="fxNow">지금 갱신</button><button class="btn sm ghost" id="fxAuto">자동값 사용</button></div></div>
       <div class="xs muted" id="fxNote"></div>
       <div class="sec-title">데이터</div>
@@ -606,6 +614,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
     <div class="row between"><span>이 도움말</span><span class="kbd">?</span></div>
   </div><div class="actions"><button class="btn ghost" data-close>닫기</button></div></div></dialog>
 
+<dialog id="guideDlg" class="wide"><div class="sheet"><h2>사용 설명서</h2><div class="stack" id="guideBody"></div><div class="xs muted">단축키는 ?, 전체 검색은 Ctrl+K</div><div class="actions"><button class="btn" data-close>닫기</button></div></div></dialog>
 <dialog id="fixDlg"><form class="sheet" id="fixForm" method="dialog" novalidate><h2 id="fxTitle">고정지출 추가</h2><div class="fields">
   <label class="field">이름<input id="fx-name" placeholder="예: 실손보험, 넷플릭스"></label>
   <label class="field">분류<select id="fx-cat"><option value="ins">보험</option><option value="sub">구독</option><option value="comm">통신</option><option value="home">주거·관리비</option><option value="loan">대출 상환</option><option value="edu">교육</option><option value="etc">기타</option></select></label>
@@ -630,7 +639,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.10.0";
+const APP_VERSION="3.11.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1257,7 +1266,7 @@ $$("[data-close]").forEach(b=>b.addEventListener("click",()=>b.closest("dialog")
 $$("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
 function confirmBox(title,body,okText){return new Promise(res=>{$("#cfTitle").textContent=title;$("#cfBody").textContent=body;$("#cfOk").textContent=okText||"확인";
   const dlg=$("#confirmDlg");let done=false;const ok=()=>{done=true;dlg.close();res(true)};$("#cfOk").onclick=ok;dlg.addEventListener("close",()=>{if(!done)res(false)},{once:true});dlg.showModal();});}
-$$("[data-open-settings]").forEach(b=>b.onclick=()=>{$("#fxInput").value=Math.round(fxRate("USD"));renderSnaps();$("#setDlg").showModal();});
+$$("[data-open-settings]").forEach(b=>b.onclick=()=>{$("#fxInput").value=Math.round(fxRate("USD"));renderSnaps();renderNotifySetting();$("#setDlg").showModal();});
 $$("[data-open-help]").forEach(b=>b.onclick=()=>$("#helpDlg").showModal());
 
 /* ================= holding CRUD ================= */
@@ -2008,6 +2017,30 @@ $("#fxNow").onclick=()=>refreshFx(true);
 setInterval(()=>{refreshFx(false);refreshData();},60*60e3);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshFx(false);});
 
+/* ================= desktop notifications ================= */
+function notifyState(){return typeof Notification==="undefined"?"unsupported":Notification.permission;}
+function renderNotifySetting(){const st=notifyState();const on=LS.get("jasan-notify",false)&&st==="granted";$("#notifyBtn").textContent=st==="unsupported"?"지원 안 됨":on?"켜짐 · 끄기":"켜기";$("#notifyBtn").disabled=st==="unsupported"||st==="denied";$("#notifyNote").textContent=st==="denied"?"브라우저에서 알림이 차단돼 있어요. Edge 설정 > 사이트 권한 > 알림에서 허용하세요.":"월급날, 만기·갱신 7일 전, 연말정산 마감 같은 중요한 일을 앱을 열 때 Windows 알림으로 알려줘요 (하루 한 번).";}
+$("#notifyBtn").onclick=async()=>{if(LS.get("jasan-notify",false)&&notifyState()==="granted"){LS.set("jasan-notify",false);renderNotifySetting();toast("알림을 껐어요");return;}
+  try{const r=await Notification.requestPermission();if(r==="granted"){LS.set("jasan-notify",true);new Notification("자산 키움 노트",{body:"알림이 켜졌어요. 중요한 일이 있는 날 알려드릴게요."});}}catch(e){}renderNotifySetting();};
+function dailyNotify(){if(!LS.get("jasan-notify",false)||notifyState()!=="granted"||LS.get("jasan-notified","")===today())return;const t=totals();const msgs=[];
+  const pd=num(PROFILE.payday);if(pd&&new Date().getDate()===pd)msgs.push("오늘은 월급날이에요. 월급 배분 체크리스트를 확인하세요.");
+  items.filter(h=>h.maturity&&!isDebt(h)).forEach(h=>{const d=Math.ceil(days(today(),h.maturity));if(d>=0&&d<=7)msgs.push(`'${h.name}' 만기 D-${d}`);});
+  fixeds.filter(f=>f.renew).forEach(f=>{const d=Math.ceil(days(today(),f.renew));if(d>=0&&d<=7)msgs.push(`'${f.name}' 갱신·해지 D-${d}`);});
+  const m=new Date().getMonth();if(m===11){const ye=yearEnd(t);const g=ye.acts.reduce((s,a)=>s+a.gain,0);if(g>0)msgs.push(`연말정산 D-${ye.dleft}: 약 ${short(g)}원 절세 기회`);}
+  if(!msgs.length)return;try{const n=new Notification("자산 키움 노트",{body:msgs.slice(0,3).join("\n")+(msgs.length>3?`\n외 ${msgs.length-3}건`:"")});n.onclick=()=>{window.focus();location.hash="#home";};LS.set("jasan-notified",today());}catch(e){}}
+
+/* ================= in-app guide ================= */
+const GUIDE_SECTIONS=[
+ ["처음 시작하기",["왼쪽 아래 '내 정보 · 연봉'에서 연봉과 생활비를 입력하세요. 실수령액, 4대보험, 세금, 월급 배분이 모두 이 값으로 계산돼요.","자산 화면의 [+ 현금·입출금] [+ 투자] 같은 버튼으로 월급통장부터 하나씩 추가하세요. 유형에 맞는 입력 칸만 나와요.","설정 > 예시로 채우기를 누르면 화면 구성을 미리 볼 수 있어요. 실제 사용 전에 '모든 데이터 지우기'로 지우세요."]],
+ ["자산 입력 요령",["주식·ETF·코인은 수량·평균단가·현재가로, 예적금·연금은 금액으로 관리해요.","해외 자산은 통화(USD·JPY·EUR)와 평균 매입 환율을 넣으면 환차손익이 따로 계산돼요.","적금·청약·연금·대출에 '자동'을 켜면 월급날마다 납입·상환이 자동으로 기록돼요.","잔액이 자주 바뀌는 자산은 자산 화면의 '시세·잔액 일괄 업데이트'로 한 번에 고치세요."]],
+ ["거래 원장",["매수·매도·배당·이자를 기록하면 실현손익, 연환산 수익률(XIRR), 세금 계산이 정확해져요.","거래를 수정·삭제하면 보유 수량과 평단이 자동으로 다시 계산되고, 실수하면 Ctrl+Z로 되돌릴 수 있어요.","설정 > 거래내역 가져오기로 은행·증권사 앱에서 받은 CSV를 한꺼번에 넣을 수 있어요."]],
+ ["숫자 읽는 법",["순자산 = 자산 − 부채. 홈의 '운용' 수치는 저축으로 늘어난 돈을 뺀 순수 투자 성과예요.","XIRR은 돈을 넣고 뺀 시점까지 반영한 실제 연수익률, TWR은 입출금 영향을 뺀 운용 실력이에요.","VaR 95%는 1년 동안 20번에 1번꼴로 생길 수 있는 손실 규모예요."]],
+ ["세금 · 연말정산",["세금 화면은 대한민국 소득세법 기준으로 결정세액을 계산해요. 회사 연말정산 결과와는 공제 항목 차이로 다를 수 있어요.","10월부터는 '연말정산 D-day' 카드가 12월 31일 전에 할 일과 절세액을 알려줘요.","카드 사용액과 체크카드 비율을 입력하면 신용카드·체크카드 중 무엇이 유리한지 알려줘요."]],
+ ["자동 업데이트 · 데이터",["앱은 켤 때마다 최신 버전과 시장 정보를 자동으로 받아요. 환율은 켜져 있는 동안 1시간마다 갱신돼요.","데이터는 이 PC에만 저장돼요. 하루 한 번 복원 지점이 자동 저장되고, 설정에서 날짜별로 되돌릴 수 있어요.","PC를 바꾸거나 브라우저 데이터를 지우기 전에는 설정 > 백업 내보내기로 파일을 꼭 저장하세요."]],
+ ["자주 묻는 질문",["Q. 현재가가 자동으로 바뀌나요? → 아직은 직접 입력해요. 일괄 업데이트 창에서 한 번에 고칠 수 있어요.","Q. 휴대폰에서도 쓸 수 있나요? → 지금은 PC용이에요. 백업 파일로 다른 PC에 옮길 수는 있어요.","Q. 투자 권유인가요? → 아니에요. 일반 원칙을 계산해 보여주는 도구이며, 큰 결정 전에는 전문가와 상담하세요."]]];
+$("#guideBody").innerHTML=GUIDE_SECTIONS.map(([h,ps],i)=>`<details ${i===0?"open":""} class="gd"><summary>${h}</summary><ul>${ps.map(x=>`<li>${x}</li>`).join("")}</ul></details>`).join("");
+$$("[data-open-guide]").forEach(b=>b.onclick=()=>$("#guideDlg").showModal());
+
 /* ================= restore points ================= */
 function dailySnap(){if(!items.length)return;let sn=LS.get(K.snaps,[]);if(!Array.isArray(sn))sn=[];if(sn.length&&sn[sn.length-1].d===today())return;
   sn.push({d:today(),at:Date.now(),data:{items,txs,goals,profile:PROFILE}});while(sn.length>7)sn.shift();try{localStorage.setItem(K.snaps,JSON.stringify(sn));}catch(e){sn.splice(0,sn.length-2);LS.set(K.snaps,sn);}}
@@ -2045,7 +2078,7 @@ $("#cmapOk").onclick=()=>{const {out}=csvBuild();if(!out.length){toast("가져�
   persist();$("#cmapDlg").close();renderAll();toast(`거래 ${out.length}건을 가져왔어요`,"되돌리기",undo);};
 
 /* ================= command palette ================= */
-function cmdItems(){const acts=[["자산 추가 (N)",()=>openHolding()],["거래 기록 (T)",()=>openTx()],["시세·잔액 일괄 업데이트",()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),60);}],["연봉 · 내 정보 수정",()=>openProfile()],["월간 결산 기록",()=>{location.hash="#salary";setTimeout(()=>$("#fl-income").focus(),80);}],["목표 추가",()=>openGoal()],["고정지출 추가",()=>openFix()],["내 집 마련 플래너",()=>{location.hash="#grow";setTimeout(()=>$("#hbOut").scrollIntoView({behavior:"smooth"}),120);}],["노후 준비 계산기",()=>{location.hash="#grow";setTimeout(()=>$("#retOut").scrollIntoView({behavior:"smooth"}),120);}],["백업 내보내기",()=>$("#expBtn").click()],["현재 화면 PDF 저장",()=>$("[data-print]").click()],["환율 지금 갱신",()=>refreshFx(true)],["설정 열기",()=>$("[data-open-settings]").click()]];
+function cmdItems(){const acts=[["자산 추가 (N)",()=>openHolding()],["거래 기록 (T)",()=>openTx()],["시세·잔액 일괄 업데이트",()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),60);}],["연봉 · 내 정보 수정",()=>openProfile()],["월간 결산 기록",()=>{location.hash="#salary";setTimeout(()=>$("#fl-income").focus(),80);}],["목표 추가",()=>openGoal()],["고정지출 추가",()=>openFix()],["내 집 마련 플래너",()=>{location.hash="#grow";setTimeout(()=>$("#hbOut").scrollIntoView({behavior:"smooth"}),120);}],["노후 준비 계산기",()=>{location.hash="#grow";setTimeout(()=>$("#retOut").scrollIntoView({behavior:"smooth"}),120);}],["백업 내보내기",()=>$("#expBtn").click()],["현재 화면 PDF 저장",()=>$("[data-print]").click()],["환율 지금 갱신",()=>refreshFx(true)],["설정 열기",()=>$("[data-open-settings]").click()],["사용 설명서",()=>$("#guideDlg").showModal()],["바탕화면 알림 설정",()=>$("[data-open-settings]").click()]];
   return [...PAGES.map(([k,l])=>({g:"화면",l:l+" 화면으로",f:()=>location.hash="#"+k})),...acts.map(([l,f])=>({g:"동작",l,f})),...items.map(h=>({g:TYPES[h.type].label,l:h.name+(h.account?" · "+h.account:""),f:()=>openDetail(h.id),v:valKRW(h)}))];}
 let cmdSel=0,cmdList=[];
 function renderCmd(){const q=$("#cmdQ").value.trim().toLowerCase();cmdList=cmdItems().filter(x=>!q||(x.l+" "+x.g).toLowerCase().includes(q)).slice(0,12);cmdSel=Math.min(cmdSel,Math.max(0,cmdList.length-1));
@@ -2064,7 +2097,7 @@ document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLower
   else if(e.key==="?"){$("#helpDlg").showModal();}else if(/^[1-8]$/.test(e.key)){location.hash="#"+PAGES[+e.key-1][0];}});
 
 /* ================= boot ================= */
-ensureOpenTx();LS.set(K.tx,txs);runAutopay();if(items.length)recordHistory();dailySnap();
+ensureOpenTx();LS.set(K.tx,txs);runAutopay();if(items.length)recordHistory();dailySnap();setTimeout(dailyNotify,1500);
 route();applyRates();refreshData();refreshFx(false);
 if(LS.get(K.profile,null)===null&&!items.length)setTimeout(()=>{openProfile();toast("연봉부터 입력하면 실수령액·세금·월급 배분이 자동으로 계산돼요");},400);
 try{const prev=localStorage.getItem("jasan-seen-version");if(prev&&prev!==APP_VERSION)setTimeout(()=>toast(`v${APP_VERSION}로 업데이트됐어요 · 프로 기능이 추가됐어요`),600);localStorage.setItem("jasan-seen-version",APP_VERSION);}catch(e){}
