@@ -688,7 +688,7 @@ body.dense-ui main{padding-block:18px 36px}
   <label class="field">갱신·만기·해지 기한<input id="fx-renew" type="date"></label>
   <label class="field" style="grid-column:1/-1">메모<input id="fx-memo" placeholder="예: 보장 내용, 해지 방법"></label></div>
   <div class="actions"><button type="button" class="btn danger" id="fxDel" hidden>삭제</button><span class="grow"></span><button type="button" class="btn ghost" data-close>취소</button><button type="submit" class="btn">저장</button></div></form></dialog>
-<dialog id="detDlg" class="wide"><div class="sheet"><h2 class="row" id="detTitle" style="gap:12px"></h2><div class="split" id="detTiles"></div><div id="detNote"></div><div class="sec-title">거래 내역</div><div id="detTx"></div>
+<dialog id="detDlg" class="wide"><div class="sheet"><h2 class="row" id="detTitle" style="gap:12px"></h2><div class="split" id="detTiles"></div><div id="detNote"></div><div id="detActs"></div><div class="sec-title">거래 내역</div><div id="detTx"></div>
   <div class="actions"><button class="btn ghost" data-close>닫기</button><span class="grow"></span><button class="btn ghost" id="detTx2">거래 기록</button><button class="btn" id="detEdit">자산 수정</button></div></div></dialog>
 <dialog id="cmapDlg" class="wide"><div class="sheet"><h2>거래내역 가져오기</h2><div class="xs muted" id="cmapInfo"></div>
   <div class="note">은행·증권사 앱에서 내려받은 거래내역 CSV의 열을 맞춰 주세요. 머리글을 보고 자동으로 골라 두었어요. 엑셀(xlsx) 파일은 'CSV로 저장' 후 불러오세요.</div>
@@ -703,7 +703,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.22.0";
+const APP_VERSION="3.23.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1395,6 +1395,16 @@ function openDetail(id){const h=items.find(x=>x.id===id);if(!h)return;detailId=i
   if(r.fx)tiles.push(["환차손익",(r.fx>=0?"+":"")+won(r.fx)+"원",sgn(r.fx),`매입 ${num(h.avgFx).toFixed(2)} → 현재 ${fxRate(h.currency).toFixed(2)}`]);
   $("#detTiles").innerHTML=tiles.map(([k,v_,cls,n])=>`<div class="tile"><div class="k">${k}</div><div class="v num ${cls}">${v_}</div><div class="n">${n||""}</div></div>`).join("");
   $("#detNote").innerHTML=h.note||tagsOf(h).length?`<div class="alert"><span class="dot" style="background:var(--info)"></span><span>${tagsOf(h).map(t=>`<b style="color:var(--accent)">#${esc(t)}</b> `).join("")}${h.note?`<br><span class="small ink2" style="white-space:pre-wrap">${esc(h.note)}</span>`:""}</span></div>`:"";
+  const acts=[];const matured=h.maturity&&h.maturity<=today()&&!isDebt(h)&&TYPES[h.type].cls==="fixed";if(matured)acts.push(`<button class="btn sm" data-mat="renew">재예치 (이자 반영·1년 연장)</button><button class="btn sm ghost" data-mat="close">해지 → 월급통장으로</button>`);
+  if(num(h.divYield)>0&&!isDebt(h)){const fq=h.divFreq||DIV_DEFAULT[h.type]||"q";const per=fq==="m"?12:fq==="q"?4:fq==="h"?2:1;acts.push(`<button class="btn sm ghost" data-divrec="${Math.round(valCur(h)*num(h.divYield)/100/per*100)/100}">배당 받음 기록</button>`);}
+  $("#detActs").innerHTML=acts.length?`<div class="row wrap" style="gap:8px">${matured?'<span class="chip warn">만기 도래</span>':""}${acts.join("")}</div>`:"";
+  $$("[data-divrec]").forEach(b=>b.onclick=()=>{$("#detDlg").close();openTx(h.id,"dividend",b.dataset.divrec,"정기 배당");$("#t-tax").value=isTaxFree(h)?0:Math.round(num(b.dataset.divrec)*.154*100)/100;taxTouched=true;});
+  $$("[data-mat]").forEach(b=>b.onclick=async()=>{const me={amt:num(h.value)+Math.max(0,num(h.value)-num(h.principal))*0};const gross=num(h.value)*num(h.rate)/100*Math.max(0,days(h.start||h.maturity,h.maturity))/365;const netInt=Math.round(gross*(TYPES[h.type].taxfree?1:.846));
+    if(b.dataset.mat==="renew"){$("#detDlg").close();if(!(await confirmBox("재예치",`세후 이자 약 ${won(netInt)}원을 원금에 더하고 만기를 1년 연장할까요? 금리는 자산 수정에서 바꿀 수 있어요.`,"재예치")))return;snapUndo();const t={id:uid(),hid:h.id,hname:h.name,kind:"interest",date:h.maturity,amount:Math.round(gross),fee:0,tax:Math.round(gross)-netInt,qty:0,price:0,memo:"만기 이자",cur:h.currency,applied:false};txs.push(t);h.value=num(h.value)+netInt;const d=new Date(h.maturity);d.setFullYear(d.getFullYear()+1);h.start=h.maturity;h.maturity=iso(d);persist();renderAll();toast("재예치했어요","되돌리기",undo);}
+    else{$("#detDlg").close();const ck=items.find(x=>x.type==="checking")||items.find(x=>x.type==="parking");const total=num(h.value)+netInt;if(!(await confirmBox("해지",`원리금 약 ${won(total)}원(세후 이자 포함)을 ${ck?"'"+ck.name+"'로 옮기고 ":""}이 상품을 정리할까요?`,"해지")))return;snapUndo();
+      txs.push({id:uid(),hid:h.id,hname:h.name,kind:"interest",date:h.maturity,amount:Math.round(gross),fee:0,tax:Math.round(gross)-netInt,qty:0,price:0,memo:"만기 이자",cur:h.currency,applied:false});const w={id:uid(),hid:h.id,hname:h.name,kind:"withdraw",date:today(),amount:num(h.value),fee:0,tax:0,qty:0,price:0,memo:"만기 해지",cur:h.currency};applyTx(w,h);w.applied=true;txs.push(w);
+      if(ck){const dpt={id:uid(),hid:ck.id,hname:ck.name,kind:"deposit",date:today(),amount:total,fee:0,tax:0,qty:0,price:0,memo:`${h.name} 만기 해지금`,cur:ck.currency,applied:true};applyTx(dpt,ck);txs.push(dpt);}
+      items=items.filter(x=>x.id!==h.id);persist();renderAll();toast("해지 처리했어요","되돌리기",undo);}});
   const own=txs.filter(x=>x.hid===id).sort((a,b)=>a.date<b.date?1:-1);
   $("#detTx").innerHTML=own.length?`<div class="tablewrap"><table class="dense" style="min-width:420px"><tbody>${own.slice(0,30).map(x=>`<tr style="cursor:default"><td class="num">${x.date}</td><td><span class="pill ${x.kind}">${KIND[x.kind]||x.kind}</span></td><td class="r num">${num(x.qty)?num(x.qty).toLocaleString("ko-KR"):""}</td><td class="r num">${won(x.amount)}</td><td class="r num ${x.realized!=null?sgn(rk(x)):""}">${x.realized!=null?(rk(x)>=0?"+":"")+short(rk(x)):""}</td><td class="small muted">${esc(x.memo||"")}</td><td>${x.kind!=="open"?`<button class="link small" data-detedit="${esc(x.id)}">수정</button>`:""}</td></tr>`).join("")}</tbody></table></div>${own.length>30?`<div class="xs muted">최근 30건만 표시 · 전체는 원장에서</div>`:""}`:'<div class="note">거래 기록이 없어요.</div>';
   $$("[data-detedit]").forEach(b=>b.onclick=()=>{$("#detDlg").close();openTx(null,null,null,null,b.dataset.detedit);});
