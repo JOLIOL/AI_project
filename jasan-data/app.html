@@ -239,12 +239,21 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
   .card,.kpi,.tile{box-shadow:none!important;border:1px solid #ddd;break-inside:avoid}
   .page{max-width:none}
 }
+
+.ttip{position:fixed;z-index:60;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.18);pointer-events:none;min-width:170px;display:flex;flex-direction:column;gap:4px}
+.cmd-trigger{display:flex;align-items:center;gap:8px;margin:0 4px 14px;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--muted);cursor:pointer;font:inherit;font-size:13px}
+.cmd-trigger span:nth-child(2){flex:1;text-align:left}
+.cmd-dlg{margin-top:12vh}
+.item.cmd{padding:10px 8px;gap:10px}.item.cmd.sel{background:var(--accent-soft)}
+.item.cmd .main{flex:1;min-width:0;font-weight:550}
+.page-head .sub b{font-weight:650}
 </style>
 </head>
 <body>
 <div class="app">
   <aside class="side" aria-label="메뉴">
     <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-5 4 4 7-8"/><path d="M15 8h5v5"/></svg></span>자산 키움 노트 <span class="pill" style="margin-left:2px">PRO</span></div>
+    <button class="cmd-trigger" data-open-cmd><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>검색·바로가기</span><span class="kbd">Ctrl K</span></button>
     <nav class="stack" style="gap:2px" id="sideNav"></nav>
     <div class="spacer"></div>
     <button class="nav-item" data-open-profile><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>내 정보 · 연봉</button>
@@ -256,7 +265,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
   <div style="min-width:0">
     <header class="topbar">
       <div class="brand" style="padding:0"><span class="logo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-5 4 4 7-8"/><path d="M15 8h5v5"/></svg></span><span id="topTitle">홈</span></div>
-      <button class="icon-btn" data-open-settings aria-label="설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+      <div class="row" style="gap:6px"><button class="icon-btn" data-open-cmd aria-label="검색"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button><button class="icon-btn" data-open-settings aria-label="설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button></div>
     </header>
     <main>
       <!-- HOME -->
@@ -550,15 +559,18 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
     <div class="row between"><span>거래 기록</span><span class="kbd">T</span></div>
     <div class="row between"><span>검색</span><span class="kbd">/</span></div>
     <div class="row between"><span>화면 이동 (홈 · 자산 · 원장 · 분석 · 세금 · 월급 · 목표 · 가이드)</span><span><span class="kbd">1</span> ~ <span class="kbd">8</span></span></div>
+    <div class="row between"><span>검색·바로가기</span><span class="kbd">Ctrl K</span></div>
+    <div class="row between"><span>실행 취소</span><span class="kbd">Ctrl Z</span></div>
     <div class="row between"><span>이 도움말</span><span class="kbd">?</span></div>
   </div><div class="actions"><button class="btn ghost" data-close>닫기</button></div></div></dialog>
 
+<dialog id="cmdDlg" class="cmd-dlg"><div class="sheet" style="gap:10px"><label class="search toolbar" style="display:block"><input id="cmdQ" placeholder="화면, 동작, 자산 이름을 입력하세요" aria-label="검색" style="width:100%;font-size:16px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2)"></label><div class="list" id="cmdList" style="max-height:52vh;overflow:auto"></div><div class="xs muted">↑↓ 이동 · Enter 실행 · Esc 닫기</div></div></dialog>
 <dialog id="confirmDlg"><div class="sheet"><h2 id="cfTitle"></h2><div class="ink2" id="cfBody"></div><div class="actions"><button class="btn ghost" data-close>취소</button><button class="btn danger" id="cfOk">확인</button></div></div></dialog>
 <div class="toast" id="toast" role="status"></div>
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.3.0";
+const APP_VERSION="3.4.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1407,26 +1419,38 @@ function donutFrom(map,lab,col){const tot=Object.values(map).reduce((a,b)=>a+b,0
 function lineChart(series,o){const W=o.w||680,H=o.h||220,L=o.l??56,R=14,T=14,B=26;const n=Math.max(...series.map(s=>s.pts.length));const all=series.flatMap(s=>s.pts).concat(o.extra||[]).filter(isFinite);
   let max=Math.max(...all)*1.04,min=o.zero?0:Math.min(...all)*.97;if(!(max>min)){max=(max||1)*1.1;min=0}
   const x=i=>L+(W-L-R)*(n<=1?0:i/(n-1)),y=v=>T+(H-T-B)*(1-(v-min)/(max-min));let g="";
-  for(let i=0;i<=4;i++){const v=min+(max-min)*i/4;g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end">${o.fmt?o.fmt(v):short(v)}</text>`;}
-  (o.xlabels||[]).forEach(([i,t])=>g+=`<text x="${x(i)}" y="${H-6}" text-anchor="middle">${esc(t)}</text>`);
+  for(let i=0;i<=4;i++){const v=min+(max-min)*i/4;g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end">${o.fmt?o.fmt(v):axisFmt(v)}</text>`;}
+  (o.xlabels||[]).forEach(([i,t])=>g+=`<text x="${x(i)}" y="${H-6}" text-anchor="${i===0&&n>1?"start":i===n-1&&n>1?"end":"middle"}">${esc(t)}</text>`);
   (o.bands||[]).forEach(b=>{const up=b.hi.map((v,i)=>`${x(i)},${y(v)}`).join(" "),dn=b.lo.map((v,i)=>`${x(i)},${y(v)}`).reverse().join(" ");g+=`<polygon points="${up} ${dn}" fill="var(${b.c})" opacity="${b.o}"/>`;});
   if(o.goal&&o.goal<=max)g+=`<line x1="${L}" x2="${W-R}" y1="${y(o.goal)}" y2="${y(o.goal)}" stroke="var(--c3)" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${W-R}" y="${y(o.goal)-6}" text-anchor="end" style="fill:var(--c3)">목표 ${short(o.goal)}</text>`;
   series.forEach(s=>{const p=s.pts.map((v,i)=>`${x(i)},${y(v)}`).join(" ");if(s.area)g+=`<polygon points="${x(0)},${y(min)} ${p} ${x(s.pts.length-1)},${y(min)}" fill="var(${s.c})" opacity=".12"/>`;
     g+=`<polyline points="${p}" fill="none" stroke="${s.dash?"var(--muted)":`var(${s.c})`}" stroke-width="${s.dash?1.5:2.5}" ${s.dash?'stroke-dasharray="4 4"':""} stroke-linejoin="round" stroke-linecap="round"/>`;
     if(!s.dash&&s.pts.length)g+=`<circle cx="${x(s.pts.length-1)}" cy="${y(s.pts[s.pts.length-1])}" r="4.5" fill="var(${s.c})" stroke="var(--surface)" stroke-width="2"/>`;});
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.label||"차트")}">${g}</svg>`;}
+  const tt=o.tt?` data-tt="${esc(JSON.stringify({L,R,W,H,T,B,n,labels:o.tt.labels,series:o.tt.series}))}"`:"";
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.label||"차트")}"${tt}>${g}<line class="tt-guide" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="var(--muted)" stroke-dasharray="3 3" opacity="0"/></svg>`;}
+const axisFmt=v=>{const a=Math.abs(v);if(a>=1e8)return (v/1e8).toFixed(a>=1e9?0:a>=1e8*10?0:1).replace(/\.0$/,"")+"억";if(a>=1e4)return Math.round(v/1e4).toLocaleString("ko-KR")+"만";return Math.round(v).toLocaleString("ko-KR");};
 const kpi=(k,v,n,cls,tip)=>`<div class="kpi"><div class="k">${k}${tip?` <span class="tip" title="${esc(tip)}">?</span>`:""}</div><div class="v num ${cls||""}">${v}</div>${n?`<div class="n">${n}</div>`:""}</div>`;
+
+/* chart hover tooltip */
+(function(){const tip=document.createElement("div");tip.className="ttip";tip.hidden=true;document.body.appendChild(tip);
+  document.addEventListener("pointermove",e=>{const svg=e.target.closest&&e.target.closest("svg[data-tt]");if(!svg){tip.hidden=true;$$(".tt-guide").forEach(g=>g.setAttribute("opacity","0"));return;}
+    let d;try{d=JSON.parse(svg.dataset.tt)}catch(err){return;}const r=svg.getBoundingClientRect();const vx=(e.clientX-r.left)/r.width*d.W;const i=Math.max(0,Math.min(d.n-1,Math.round((vx-d.L)/((d.W-d.L-d.R)/Math.max(1,d.n-1)))));
+    const gx=d.L+(d.W-d.L-d.R)*(d.n<=1?0:i/(d.n-1));const gl=svg.querySelector(".tt-guide");if(gl){gl.setAttribute("x1",gx);gl.setAttribute("x2",gx);gl.setAttribute("opacity",".6");}
+    tip.innerHTML=`<b>${esc(d.labels[i]??"")}</b>`+d.series.map(s=>`<div class="row between" style="gap:14px"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(${s.c});margin-right:6px"></i>${esc(s.name)}</span><span class="num">${won(s.pts[i])}원</span></div>`).join("");
+    tip.hidden=false;const tw=tip.offsetWidth,th=tip.offsetHeight;let x=e.clientX+14,y=e.clientY-th-10;if(x+tw>innerWidth-8)x=e.clientX-tw-14;if(y<8)y=e.clientY+16;tip.style.left=x+"px";tip.style.top=y+"px";},{passive:true});})();
 
 /* ================= renderers ================= */
 function renderHome(t){const h=new Date().getHours();$("#hello").textContent=h<12?"좋은 아침이에요":h<18?"오늘도 잘 모으고 있어요":"오늘 하루도 수고했어요";
-  $("#homeSub").textContent=`${DATA.asOfLabel||""} 시장 정보 · ${marketState}`;renderProfileStrip();renderOnboard(t);
+  const mAgo=(()=>{const d=new Date();d.setDate(d.getDate()-30);const f=iso(d);return [...hist].reverse().find(x=>x.d<=f)||hist[0];})();const curNet=t.net;
+  const chg=mAgo&&mAgo.d<today()?curNet-(mAgo.n??mAgo.v):null;const contrib=mAgo?netInvested()-(mAgo.f??mAgo.p):0;
+  $("#homeSub").innerHTML=`${esc(DATA.asOfLabel||"")} 시장 정보 · ${marketState}${chg!=null?` · <b class="${sgn(chg)}">${mAgo.d.slice(5).replace("-","/")} 이후 순자산 ${chg>=0?"+":""}${short(chg)}원</b> (저축 ${short(contrib)} · 운용 ${chg-contrib>=0?"+":""}${short(chg-contrib)})`:""}`;renderProfileStrip();renderOnboard(t);
   const xr=portfolioXirr(t),tr=taxReport(t);const prev=hist.filter(x=>x.d<today()).slice(-1)[0];const dd=prev?t.value-prev.v-((netInvested()-(prev.f??prev.p)))||0:null;
   $("#hKpis").innerHTML=kpi(t.debt?"순자산":"총자산",short(t.debt?t.net:t.value)+"원",t.debt?`자산 ${short(t.value)} − 부채 ${short(t.debt)}`:prev?`직전 기록 대비 ${dd>=0?"+":""}${short(dd)}원 (입출금 제외)`:"오늘부터 추이를 기록해요")+
     kpi("평가손익",(t.gain>=0?"+":"")+short(t.gain)+"원",`${t.cost?pct(t.gain/t.cost):""}${(t.byCls.realty||0)?` · 투자자산 ${short(investable(t))}`:""}`,sgn(t.gain))+
     kpi("연환산 수익률 (XIRR)",xr&&xr.r!=null&&xr.span>=30?pct(xr.r):"–",xr&&xr.span<30?"기간 30일 이상부터 표시":"입출금 시점을 반영한 실제 수익률",xr&&xr.r!=null?sgn(xr.r):"","거래 원장의 모든 입출금 시점과 금액을 반영한 내부수익률(IRR)")+
     kpi(`${yr()}년 배당·이자`,short(tr.div+tr.intr)+"원",`실현손익 ${tr.realized>=0?"+":""}${short(tr.realized)}원`);
   const r=num(UI.histR);const hs=r?hist.filter(x=>days(x.d,today())<=r):hist;$$("#histRange button").forEach(b=>b.setAttribute("aria-pressed",String(num(b.dataset.r)===r)));
-  $("#hHistory").innerHTML=hs.length>=2?lineChart([{pts:hs.map(x=>x.f??x.p),c:"--c7",dash:true},{pts:hs.map(x=>x.v),c:"--c1",area:true}].concat(hs.some(x=>x.n!=null&&x.n!==x.v)?[{pts:hs.map(x=>x.n??x.v),c:"--c2"}]:[]),{h:190,label:"자산 추이",xlabels:[[0,hs[0].d.slice(2).replace(/-/g,".")],[hs.length-1,hs[hs.length-1].d.slice(2).replace(/-/g,".")]]})+`<div class="row small muted" style="gap:14px"><span class="row" style="gap:6px"><i style="width:14px;height:3px;background:var(--c1)"></i>자산</span>${hs.some(x=>x.n!=null&&x.n!==x.v)?'<span class="row" style="gap:6px"><i style="width:14px;height:3px;background:var(--c2)"></i>순자산</span>':""}<span class="row" style="gap:6px"><i style="width:14px;border-top:2px dashed var(--muted)"></i>순투입 원금</span></div>`
+  $("#hHistory").innerHTML=hs.length>=2?lineChart([{pts:hs.map(x=>x.f??x.p),c:"--c7",dash:true},{pts:hs.map(x=>x.v),c:"--c1",area:true}].concat(hs.some(x=>x.n!=null&&x.n!==x.v)?[{pts:hs.map(x=>x.n??x.v),c:"--c2"}]:[]),{h:190,label:"자산 추이",tt:{labels:hs.map(x=>x.d),series:[{name:"자산",c:"--c1",pts:hs.map(x=>x.v)}].concat(hs.some(x=>x.n!=null&&x.n!==x.v)?[{name:"순자산",c:"--c2",pts:hs.map(x=>x.n??x.v)}]:[]).concat([{name:"순투입",c:"--c7",pts:hs.map(x=>x.f??x.p)}])},xlabels:[[0,hs[0].d.slice(2).replace(/-/g,".")],[hs.length-1,hs[hs.length-1].d.slice(2).replace(/-/g,".")]]})+`<div class="row small muted" style="gap:14px"><span class="row" style="gap:6px"><i style="width:14px;height:3px;background:var(--c1)"></i>자산</span>${hs.some(x=>x.n!=null&&x.n!==x.v)?'<span class="row" style="gap:6px"><i style="width:14px;height:3px;background:var(--c2)"></i>순자산</span>':""}<span class="row" style="gap:6px"><i style="width:14px;border-top:2px dashed var(--muted)"></i>순투입 원금</span></div>`
     :`<div class="note">앱을 열 때마다 총자산이 기록돼요. 이틀째부터 추이 그래프가 나타나요.</div>`;
   const by=UI.donutBy;const exR=!UI.donutRealty;const flt=m=>exR?Object.fromEntries(Object.entries(m).filter(([k])=>!["realty","lease","realestate","real"].includes(k))):m;$$("#donutBy button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.by===by)));
   $("#hDonut").innerHTML=(by==="cls"?donutFrom(flt(t.byCls),k=>CLASSES[k].label,k=>CLASSES[k].c):by==="acct"?donutFrom(exR?items.filter(h=>!isDebt(h)&&clsOf(h)!=="realty").reduce((m,h)=>{const a=h.account||"미지정";m[a]=(m[a]||0)+valKRW(h);return m;},{}):t.byAcct,k=>k,(k,i)=>ACCT_COLORS[i%8]):by==="cur"?donutFrom(t.byCur,k=>k==="USD"?"달러 자산":"원화 자산",(k,i)=>i?"--c2":"--c1"):donutFrom(flt(Object.fromEntries(Object.entries(t.byType).filter(([k])=>TYPES[k]&&TYPES[k].mode!=="debt"))),k=>TYPES[k].label,k=>TYPES[k].c))+((t.byCls.realty||0)>0?`<label class="inline-check" style="width:100%"><input type="checkbox" id="donutRealty" ${UI.donutRealty?"checked":""}>부동산·보증금 포함 (${short(t.byCls.realty)}원)</label>`:"");
@@ -1667,7 +1691,7 @@ function renderMC(){const s=num($("#mc-start").value),m=num($("#mc-monthly").val
   $("#mcKpis").innerHTML=kpi("중앙값 (50%)",short(P[.5][Y])+"원",`넣은 돈 ${short(paid)}원`)+kpi("나쁜 경우 (하위 10%)",short(P[.1][Y])+"원","10번 중 1번은 이보다 낮아요","",)+kpi("좋은 경우 (상위 10%)",short(P[.9][Y])+"원")+
     (goal?kpi("목표 달성 확률",pctp(prob,0),`목표 ${short(goal)}원 · 원금 손실 확률 ${pctp(loss,0)}`,prob>=.7?"pos":prob<.4?"neg":""):kpi("원금 손실 확률",pctp(loss,0),`${Y}년 뒤 넣은 돈보다 적을 확률`));
   const step=Y<=10?1:Y<=20?2:5;const xl=[];for(let i=0;i<=Y;i+=step)xl.push([i,i+"년"]);
-  $("#mcChart").innerHTML=lineChart([{pts:Array.from({length:Y+1},(_,i)=>s+m*12*i),dash:true},{pts:P[.5],c:"--c1"}],{h:280,zero:true,goal,extra:[P[.9][Y]],xlabels:xl,label:"몬테카를로 분포",bands:[{hi:P[.9],lo:P[.1],c:"--c1",o:.13},{hi:P[.75],lo:P[.25],c:"--c1",o:.22}]});}
+  $("#mcChart").innerHTML=lineChart([{pts:Array.from({length:Y+1},(_,i)=>s+m*12*i),dash:true},{pts:P[.5],c:"--c1"}],{h:280,zero:true,goal,extra:[P[.9][Y]],xlabels:xl,label:"몬테카를로 분포",tt:{labels:Array.from({length:Y+1},(_,i)=>i+"년 뒤"),series:[{name:"상위 10%",c:"--c1",pts:P[.9]},{name:"중앙값",c:"--c1",pts:P[.5]},{name:"하위 10%",c:"--c5",pts:P[.1]},{name:"넣은 돈",c:"--c7",pts:Array.from({length:Y+1},(_,i)=>s+m*12*i)}]},bands:[{hi:P[.9],lo:P[.1],c:"--c1",o:.13},{hi:P[.75],lo:P[.25],c:"--c1",o:.22}]});}
 function renderGrow(t){renderFire(t);$("#gGoals").innerHTML=goalsHtml(t,false);bindGoals();$("#gAdvice").innerHTML=advice(t).map(alertHtml).join("");
   if(!mcTouched){const pl=salaryPlan(PP(),t),mr=modelRisk(t);$("#mc-start").value=Math.round(investable(t));$("#mc-monthly").value=pl.err?0:pl.surplus;
     const g=goals[0];$("#mc-goal").value=g?g.target:300000000;if(g){const yy=Math.max(1,Math.round(days(today(),g.date)/365));$("#mc-years").value=yy;}
@@ -1762,8 +1786,21 @@ function dailySnap(){if(!items.length)return;let sn=LS.get(K.snaps,[]);if(!Array
 function renderSnaps(){const sn=LS.get(K.snaps,[]);$("#snapList").innerHTML=sn.length?sn.slice().reverse().map((x,i)=>`<div class="row between small"><span>${esc(x.d)} · 자산 ${x.data.items.length}개 · 거래 ${x.data.txs.length}건</span><button class="btn sm ghost" data-snap="${sn.length-1-i}">이 시점으로 복원</button></div>`).join(""):'<div class="xs muted">앱을 연 날마다 하루 한 번 자동으로 저장돼요 (최근 7일).</div>';
   $$("[data-snap]").forEach(b=>b.onclick=async()=>{const x=LS.get(K.snaps,[])[+b.dataset.snap];if(!x)return;$("#setDlg").close();if(await confirmBox("복원",`${x.d} 시점의 자산·거래·목표로 되돌릴까요?`,"복원")){snapUndo();items=x.data.items;txs=x.data.txs;goals=x.data.goals||[];LS.set(K.goals,goals);persist();renderAll();toast(`${x.d} 시점으로 복원했어요`,"되돌리기",undo);}});}
 
+/* ================= command palette ================= */
+function cmdItems(){const acts=[["자산 추가 (N)",()=>openHolding()],["거래 기록 (T)",()=>openTx()],["시세·잔액 일괄 업데이트",()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),60);}],["연봉 · 내 정보 수정",()=>openProfile()],["월간 결산 기록",()=>{location.hash="#salary";setTimeout(()=>$("#fl-income").focus(),80);}],["목표 추가",()=>openGoal()],["백업 내보내기",()=>$("#expBtn").click()],["현재 화면 PDF 저장",()=>$("[data-print]").click()],["환율 지금 갱신",()=>refreshFx(true)],["설정 열기",()=>$("[data-open-settings]").click()]];
+  return [...PAGES.map(([k,l])=>({g:"화면",l:l+" 화면으로",f:()=>location.hash="#"+k})),...acts.map(([l,f])=>({g:"동작",l,f})),...items.map(h=>({g:TYPES[h.type].label,l:h.name+(h.account?" · "+h.account:""),f:()=>openHolding(h.id),v:valKRW(h)}))];}
+let cmdSel=0,cmdList=[];
+function renderCmd(){const q=$("#cmdQ").value.trim().toLowerCase();cmdList=cmdItems().filter(x=>!q||(x.l+" "+x.g).toLowerCase().includes(q)).slice(0,12);cmdSel=Math.min(cmdSel,Math.max(0,cmdList.length-1));
+  $("#cmdList").innerHTML=cmdList.length?cmdList.map((x,i)=>`<button class="item cmd ${i===cmdSel?"sel":""}" data-ci="${i}"><span class="pill">${esc(x.g)}</span><span class="main name">${esc(x.l)}</span>${x.v!=null?`<span class="num small muted">${short(x.v)}원</span>`:""}</button>`).join(""):'<div class="note">찾는 항목이 없어요.</div>';
+  $$("[data-ci]").forEach(b=>b.onclick=()=>runCmd(+b.dataset.ci));}
+function runCmd(i){const x=cmdList[i];if(!x)return;$("#cmdDlg").close();setTimeout(x.f,30);}
+function openCmd(){$("#cmdQ").value="";cmdSel=0;renderCmd();$("#cmdDlg").showModal();setTimeout(()=>$("#cmdQ").focus(),20);}
+$("#cmdQ").addEventListener("input",()=>{cmdSel=0;renderCmd();});
+$("#cmdQ").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();cmdSel=Math.min(cmdList.length-1,cmdSel+1);renderCmd();}else if(e.key==="ArrowUp"){e.preventDefault();cmdSel=Math.max(0,cmdSel-1);renderCmd();}else if(e.key==="Enter"){e.preventDefault();runCmd(cmdSel);}});
+$$("[data-open-cmd]").forEach(b=>b.onclick=openCmd);
+
 /* ================= shortcuts ================= */
-document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&UNDO&&!["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName)){e.preventDefault();undo();return;}if(e.ctrlKey||e.metaKey||e.altKey)return;const tg=e.target.tagName;if(["INPUT","SELECT","TEXTAREA"].includes(tg)||document.querySelector("dialog[open]"))return;
+document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();if(!$("#cmdDlg").open)openCmd();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&UNDO&&!["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName)){e.preventDefault();undo();return;}if(e.ctrlKey||e.metaKey||e.altKey)return;const tg=e.target.tagName;if(["INPUT","SELECT","TEXTAREA"].includes(tg)||document.querySelector("dialog[open]"))return;
   if(e.key==="n"||e.key==="N"){e.preventDefault();openHolding();}else if(e.key==="t"||e.key==="T"){e.preventDefault();openTx();}
   else if(e.key==="/"){e.preventDefault();if(curPage!=="assets"&&curPage!=="ledger")location.hash="#assets";setTimeout(()=>$(curPage==="ledger"?"#lSearch":"#aSearch").focus(),50);}
   else if(e.key==="?"){$("#helpDlg").showModal();}else if(/^[1-8]$/.test(e.key)){location.hash="#"+PAGES[+e.key-1][0];}});
