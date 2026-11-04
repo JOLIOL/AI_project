@@ -680,7 +680,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.15.0";
+const APP_VERSION="3.16.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1694,8 +1694,11 @@ function renderAnalytics(t){const ps=perfStats(),mr=modelRisk(t),xr=portfolioXir
     kpi("TWR 누적",ps?pct(ps.tot):"–",ps?`${Math.round(ps.span)}일 · ${ps.n}개 구간`:"기록 2일 이상 필요",ps?sgn(ps.tot):"","입출금 영향을 제거한 운용 성과(시간가중수익률)")+
     kpi("최대 낙폭 (MDD)",ps?pct(ps.mdd):"–","기록된 고점 대비 최대 하락",ps&&ps.mdd<-.1?"neg":"")+
     kpi("샤프 지수",ps&&ps.sharpe!=null?ps.sharpe.toFixed(2):"–",ps&&ps.sharpe!=null?"(연수익−무위험)÷변동성":"30일 이상 기록 필요","","1 이상이면 위험 대비 성과가 좋은 편");
-  const prow=(l,v)=>`<tr><td>${l}</td><td class="r num ${v==null?"muted":sgn(v)}">${v==null?"데이터 부족":pct(v,2)}</td></tr>`;
-  $("#periodTbl").innerHTML=ps?`<div class="tablewrap"><table class="dense" style="min-width:0"><tbody>${prow("1개월",ps.p1m)}${prow("3개월",ps.p3m)}${prow("6개월",ps.p6m)}${prow("올해 (YTD)",ps.ytd)}${prow("1년",ps.p1y)}${prow("연환산",ps.ann)}</tbody></table></div>`
+  const bench=Array.isArray(DATA.bench)?DATA.bench.filter(x=>x&&x.d).sort((a,b)=>a.d<b.d?-1:1):[];
+  const bret=(key,dd)=>{if(bench.length<2||dd==null)return null;const end=bench[bench.length-1];let st;if(dd==="ytd")st=[...bench].reverse().find(x=>x.d<yr()+"-01-01");else{const f=new Date(end.d);f.setDate(f.getDate()-dd);st=[...bench].reverse().find(x=>x.d<=iso(f));}return st&&num(st[key])&&num(end[key])?num(end[key])/num(st[key])-1:null;};
+  const cell=v=>`<td class="r num ${v==null?"muted":sgn(v)}">${v==null?"–":pct(v,2)}</td>`;
+  const prow=(l,v,dd)=>`<tr><td>${l}</td>${cell(v)}${bench.length>=2?cell(bret("kospi",dd))+cell(bret("sp500",dd)):""}</tr>`;
+  $("#periodTbl").innerHTML=ps?`<div class="tablewrap"><table class="dense" style="min-width:0">${bench.length>=2?`<thead><tr><th>기간</th><th class="r">내 포트폴리오</th><th class="r">코스피</th><th class="r">S&amp;P500</th></tr></thead>`:""}<tbody>${prow("1개월",ps.p1m,30)}${prow("3개월",ps.p3m,91)}${prow("6개월",ps.p6m,182)}${prow("올해 (YTD)",ps.ytd,"ytd")}${prow("1년",ps.p1y,365)}${prow("연환산",ps.ann,null)}</tbody></table></div>${bench.length<2?`<div class="xs muted">시장 지수(코스피·S&amp;P500) 비교는 주간 갱신으로 지수 기록이 2주 이상 쌓이면 나타나요.</div>`:`<div class="xs muted">지수는 주간 갱신 데이터(${bench[0].d}~${bench[bench.length-1].d}) 기준이에요.</div>`}${renderAllocHist()}`
     :`<div class="note">앱을 열 때마다 하루 한 번 스냅샷이 쌓여요. 기간 수익률은 해당 기간보다 오래된 기록이 생기면 계산돼요.</div>`;
   const rrow=(l,v,n)=>`<tr><td>${l}${n?` <span class="xs muted">${n}</span>`:""}</td><td class="r num">${v}</td></tr>`;
   $("#riskTbl").innerHTML=mr?`<div class="tablewrap"><table class="dense" style="min-width:0"><tbody>
@@ -1735,6 +1738,10 @@ function renderContrib(t){const rows=items.filter(h=>!isDebt(h)).map(h=>({h,...h
      <td class="r num ${sgn(r.unreal)}">${won(r.unreal)}</td><td class="r num ${r.realized?sgn(r.realized):"muted"}">${r.realized?won(r.realized):"–"}</td><td class="r num ${r.income?"pos":"muted"}">${r.income?won(r.income):"–"}</td><td class="r num ${sgn(r.total)}"><b>${r.total>=0?"+":""}${won(r.total)}</b></td><td class="r num">${tot?pctp(r.total/tot,0):"–"}</td></tr>`).join("")}</tbody>
    <tfoot><tr><td>합계</td><td></td><td class="r num">${won(rows.reduce((s,r)=>s+r.unreal,0))}</td><td class="r num">${won(rows.reduce((s,r)=>s+r.realized,0))}</td><td class="r num">${won(rows.reduce((s,r)=>s+r.income,0))}</td><td class="r num ${sgn(tot)}">${tot>=0?"+":""}${won(tot)}</td><td></td></tr></tfoot></table></div>`;
   $$("#contribOut [data-detail]").forEach(r=>r.onclick=()=>openDetail(r.dataset.detail));}
+function renderAllocHist(){const hs=hist.filter(h=>h.cls&&h.v>0);if(hs.length<2)return "";const keys=Object.keys(CLASSES).filter(k=>hs.some(h=>num(h.cls[k])>0));const W=1000,H=150,L=8,R=8,T=8,B=20;const n=hs.length;const x=i=>L+(W-L-R)*(n<=1?0:i/(n-1)),y=v=>T+(H-T-B)*(1-v);
+  let acc=hs.map(()=>0);let g="";keys.forEach(k=>{const lo=acc.slice();const hi=hs.map((h,i)=>acc[i]+num(h.cls[k])/h.v);acc=hi;const up=hi.map((v,i)=>`${x(i)},${y(Math.min(1,v))}`).join(" "),dn=lo.map((v,i)=>`${x(i)},${y(Math.min(1,v))}`).reverse().join(" ");g+=`<polygon points="${up} ${dn}" fill="var(${CLASSES[k].c})" opacity=".85"/>`;});
+  g+=`<text x="${L}" y="${H-4}">${hs[0].d}</text><text x="${W-R}" y="${H-4}" text-anchor="end">${hs[n-1].d}</text>`;
+  return `<div class="sec-title" style="margin-top:12px">자산군 비중 변화</div><div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="자산군 비중 변화">${g}</svg></div><div class="row wrap small" style="gap:10px">${keys.map(k=>`<span><span class="badge-dot" style="background:var(${CLASSES[k].c})"></span>${CLASSES[k].label}</span>`).join("")}</div>`;}
 function amort(bal,rate,pay,extra){const r=rate/100/12;let m=0,int=0;if(bal<=0)return {m:0,int:0};if(pay+extra<=bal*r+1e-9)return {m:null,int:null};while(bal>0.5&&m<600){const i=bal*r;int+=i;bal=bal+i-(pay+extra);m++;}return {m,int};}
 function renderLoan(t){const debts=items.filter(h=>isDebt(h)&&valKRW(h)>0);if(!debts.length){$("#loanOut").innerHTML=`<div class="empty">대출을 추가하면 중도상환 효과를 계산해요.</div>`;$("#loanSel").innerHTML="";return;}
   if(!$("#loanSel").options.length||![...$("#loanSel").options].some(o=>debts.some(d=>d.id===o.value)))$("#loanSel").innerHTML=debts.map(h=>`<option value="${esc(h.id)}">${esc(h.name)} · ${num(h.rate).toFixed(2)}%</option>`).join("");
