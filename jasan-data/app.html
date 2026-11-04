@@ -384,6 +384,7 @@ body.dense-ui main{padding-block:18px 36px}
         <div class="card">
           <div class="card-head"><h3>목표 비중 리밸런싱</h3><div class="row"><span class="xs muted">허용 밴드 ±</span><span class="wt"><input id="band" type="number" min="1" max="20" step="1" aria-label="허용 밴드"></span><span class="xs muted">%p</span><button class="btn sm ghost" id="tgtReset">추천값으로</button></div></div>
           <div id="rebalTbl"></div>
+          <div id="rebalPlan"></div>
           <div class="row wrap" style="gap:10px"><span class="small ink2">신규 자금</span><span class="wt"><input id="newCash" type="number" min="0" step="100000" style="width:140px" aria-label="신규 자금"></span><span class="small ink2">원을 넣는다면</span></div>
           <div id="newCashOut"></div>
         </div>
@@ -702,7 +703,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.21.0";
+const APP_VERSION="3.22.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1743,6 +1744,7 @@ function renderAnalytics(t){const ps=perfStats(),mr=modelRisk(t),xr=portfolioXir
       <td class="r wt"><input type="number" min="0" max="100" step="0.5" data-tgt="${k}" value="${tg_}"></td><td class="r num ${out?(d>0?"neg":"pos"):"muted"}">${d>0?"+":""}${d.toFixed(1)}%p</td>
       <td class="r num">${Math.abs(amt)<1?"–":(amt>0?"+":"")+short(amt)}</td><td>${out?`<span class="chip ${d>0?"warn":"info"}">${d>0?"줄이기":"늘리기"}</span>`:'<span class="chip accent">밴드 안</span>'}</td></tr>`}).join("")}
     </tbody><tfoot><tr><td>합계</td><td class="r num">100%</td><td></td><td class="r num ${Math.abs(sumT-100)>.15?"neg":""}">${sumT.toFixed(1)}%</td><td colspan="3" class="small ${Math.abs(sumT-100)>.15?"neg":"muted"}">${Math.abs(sumT-100)>.15?"목표 비중 합계를 100%로 맞춰 주세요":"추천값은 투자 성향·나이·목표·시장 판단으로 계산돼요"}</td></tr></tfoot></table></div>`;
+  renderRebalPlan(t,tg,band);
   $$("[data-tgt]").forEach(i=>i.onchange=()=>{const cur=targets(totals());cur[i.dataset.tgt]=Math.max(0,num(i.value));LS.set(K.targets,cur);renderAnalytics(totals());});
   renderNewCash(t);renderLoan(t);renderContrib(t);
   /* stress */
@@ -1784,6 +1786,14 @@ function renderLoan(t){const debts=items.filter(h=>isDebt(h)&&valKRW(h)>0);if(!d
     <div class="tile"><div class="k">같은 돈을 투자하면</div><div class="v num">${inv?short(inv.v-inv.paid)+"원":"–"}</div><div class="n">${inv?`세후 연 ${pctp(afterTax,1)} 가정 · ${inv.n}개월 수익`:"포트폴리오 기대수익률 기준"}</div></div></div>
     ${extra?`<div class="alert"><span class="dot" style="background:${rate/100>afterTax?"var(--good)":"var(--info)"}"></span><span>${rate/100>afterTax?`대출 금리 ${rate.toFixed(2)}%가 세후 기대수익률 ${pctp(afterTax,1)}보다 높아요. <b>상환이 확실히 유리</b>해요.`:`세후 기대수익률 ${pctp(afterTax,1)}이 대출 금리 ${rate.toFixed(2)}%보다 높아요. 수익은 보장되지 않으니 비상금과 안정성을 함께 고려하세요.`}${h.type==="mortgage"||h.type==="jeonseloan"?" 중도상환수수료(보통 3년 이내 1% 안팎)도 확인하세요.":""}</span></div>`:""}`;}
 $("#loanSel").addEventListener("change",()=>renderLoan(totals()));$("#loanExtra").addEventListener("input",()=>renderLoan(totals()));
+function renderRebalPlan(t,tg,band){const plan=[];Object.keys(CLASSES).forEach(k=>{if(["pension","realty"].includes(k))return;const cur=t.byCls[k]||0,want=num(tg[k])/100*t.value,diff=want-cur;if(!t.value||Math.abs(diff/t.value*100)<=band)return;
+    const hs=items.filter(h=>!isDebt(h)&&clsOf(h)===k&&!["pension","irp","retire","lease","realestate","housing","youth"].includes(h.type)).sort((a,b)=>valKRW(b)-valKRW(a));
+    if(diff<0){let left=-diff;hs.forEach(h=>{if(left<=0)return;const take=Math.min(left,valKRW(h)*.9);if(take<10000)return;left-=take;plan.push({h,amt:-take});});}
+    else{const h=hs[0];if(h)plan.push({h,amt:diff});else plan.push({h:null,cls:k,amt:diff});}});
+  if(!plan.length){$("#rebalPlan").innerHTML="";return;}
+  $("#rebalPlan").innerHTML=`<div class="sec-title">실행 계획 (밴드를 벗어난 자산군만)</div><div class="stack" style="gap:6px">${plan.map((x,i)=>{const h=x.h;const px=h&&isSec(h)?num(h.price)*fxRate(h.currency):0;const q=px?Math.abs(x.amt)/px:0;
+    return `<div class="alert"><span class="dot" style="background:var(${x.amt>0?"--info":"--warn"})"></span><span style="flex:1">${h?`<b>${esc(h.name)}</b>`:`<b>${CLASSES[x.cls].label} 상품 새로 담기</b>`} ${x.amt>0?"매수·입금":"매도·출금"} <b class="num">${short(Math.abs(x.amt))}원</b>${q?` <span class="small muted">(약 ${q>=10?Math.round(q):q.toFixed(2)}${h.type==="crypto"?"개":"주"})</span>`:""}<br><span class="small ink2">${x.amt<0?"매도 대신 앞으로 들어올 월급을 다른 자산군에 넣어 맞추면 세금·수수료를 아낄 수 있어요.":"신규 자금이나 매도 대금으로 채우세요."}${x.amt<0&&h&&h.currency!=="KRW"?" 해외주식은 매도 이익에 양도세(250만 원 공제 후 22%)가 있어요.":""}</span></span>${h?`<button class="btn sm ghost" data-rbtx="${i}">거래 기록</button>`:""}</div>`;}).join("")}</div>`;
+  $$("[data-rbtx]").forEach(b=>b.onclick=()=>{const x=plan[+b.dataset.rbtx];const h=x.h;const sec=isSec(h);openTx(h.id,x.amt>0?(sec?"buy":"deposit"):(sec?"sell":"withdraw"),sec?"":Math.round(Math.abs(x.amt)/fxRate(h.currency)),"리밸런싱");if(sec){const q=Math.abs(x.amt)/(num(h.price)*fxRate(h.currency));$("#t-qty").value=h.type==="crypto"?q.toFixed(4):Math.max(1,Math.round(q));$("#t-price").value=num(h.price);autoTax();}});}
 function renderNewCash(t){const amt=num($("#newCash").value);if(!amt){$("#newCashOut").innerHTML="";return;}const tg=targets(t);const tot=t.value+amt;
   const need=Object.keys(CLASSES).map(k=>({k,n:Math.max(0,num(tg[k])/100*tot-(t.byCls[k]||0))}));const sumN=need.reduce((s,x)=>s+x.n,0);
   const alloc=need.map(x=>({k:x.k,a:sumN?x.n/sumN*Math.min(amt,sumN)+(sumN<amt?num(tg[x.k])/100*(amt-sumN):0):num(tg[x.k])/100*amt})).filter(x=>x.a>=1);
@@ -2160,7 +2170,9 @@ function buildReport(){const t=totals();const now=new Date();const ym_=`${now.ge
    <section><h3>현금흐름 · 세금</h3><table class="dense" style="min-width:0"><tbody>${row("연봉 (총급여)",won(PROFILE.salary)+"원")}${row("월 실수령",won(incomeOf())+"원")}${lastFlow?row(`${lastFlow.m} 저축률`,lastFlow.income?Math.round((lastFlow.income-lastFlow.expense)/lastFlow.income*100)+"%":"–"):row("최근 결산","없음")}${row("월 고정지출",won(fixeds.reduce((s,f)=>s+fixMonthly(f),0))+"원")}${row("예상 결정세액",won(w.total)+"원")}${row("연금 세액공제 예상",won(w.pensCredit*1.1)+"원")}</tbody></table></section></div>
    <section><h3>자산 구성</h3><div class="bar" style="height:14px">${Object.entries(t.byCls).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span style="width:${v/t.value*100}%;background:var(${CLASSES[k].c})"></span>`).join("")}</div><div class="row wrap small" style="gap:12px;margin-top:6px">${Object.entries(t.byCls).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span><span class="badge-dot" style="background:var(${CLASSES[k].c})"></span>${CLASSES[k].label} ${pctp(v/t.value,0)}</span>`).join("")}</div>
    ${drift.length?`<div class="small" style="margin-top:6px">목표 비중 이탈: ${drift.map(x=>`${CLASSES[x.k].label} ${x.d>0?"+":""}${x.d.toFixed(1)}%p`).join(", ")}</div>`:`<div class="small muted" style="margin-top:6px">모든 자산군이 목표 비중 ±${band}%p 안에 있어요.</div>`}</section>
-   <div class="rp-grid"><section><h3>수익 상위</h3><table class="dense" style="min-width:0"><tbody>${top.slice(0,5).map(r=>row(esc(r.h.name),`<span class="${sgn(r.total)}">${r.total>=0?"+":""}${short(r.total)}원</span>`)).join("")||row("데이터 없음","")}</tbody></table></section>
+   <div class="rp-grid">${(()=>{const mo=new Date().getMonth();if(mo!==11&&mo!==0)return "";const Y=mo===0?yr()-1:yr();const ys=String(Y);const h0=hist.find(x=>x.d.startsWith(ys)),h1=[...hist].reverse().find(x=>x.d.startsWith(ys));const yt=txs.filter(x=>x.date.startsWith(ys));const inc=yt.filter(x=>["dividend","interest"].includes(x.kind)).reduce((s,x)=>s+(num(x.amount)-num(x.tax))*txFx(x),0);const real=yt.filter(x=>x.realized!=null).reduce((s,x)=>s+rk(x),0);const fl=flows.filter(f=>f.m.startsWith(ys));const sr=fl.length?fl.reduce((s,f)=>s+(f.income-f.expense),0)/Math.max(1,fl.reduce((s,f)=>s+f.income,0)):null;const chgY=h0&&h1?(h1.n??h1.v)-(h0.n??h0.v):null;
+    return `<section><h3>${Y}년 결산</h3><div class="split"><div class="tile"><div class="k">순자산 변화</div><div class="v num ${chgY!=null?sgn(chgY):""}">${chgY!=null?(chgY>=0?"+":"")+short(chgY)+"원":"기록 부족"}</div><div class="n">${h0?h0.d+" 이후":""}</div></div><div class="tile"><div class="k">배당·이자 (세후)</div><div class="v num">${short(inc)}원</div></div><div class="tile"><div class="k">실현손익</div><div class="v num ${sgn(real)}">${real>=0?"+":""}${short(real)}원</div></div><div class="tile"><div class="k">평균 저축률</div><div class="v num">${sr!=null?pctp(sr,0):"–"}</div><div class="n">${fl.length}개월 결산 기준</div></div></div></section>`;})()}
+   <section><h3>수익 상위</h3><table class="dense" style="min-width:0"><tbody>${top.slice(0,5).map(r=>row(esc(r.h.name),`<span class="${sgn(r.total)}">${r.total>=0?"+":""}${short(r.total)}원</span>`)).join("")||row("데이터 없음","")}</tbody></table></section>
    <section><h3>이번 달 할 일</h3>${al.length?`<ul class="small" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">${al.map(a=>`<li>${a[1]}</li>`).join("")}</ul>`:'<div class="small muted">특별히 할 일이 없어요.</div>'}</section></div>
    <div class="xs muted">이 리포트는 학습·기록용 추정치이며 투자 권유가 아닙니다.</div>`;}
 function openReport(){$("#rpBody").innerHTML=buildReport();$("#rpDlg").showModal();}
