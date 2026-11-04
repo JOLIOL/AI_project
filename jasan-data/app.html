@@ -224,6 +224,8 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 .sec-title{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.04em;margin-top:4px}
 @media (max-width:1000px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:760px){
+  #detTiles{grid-template-columns:1fr 1fr}
+  dialog .sheet{padding:18px}
   .grid.mk{grid-template-columns:1fr 1fr}
   .bottom{grid-template-columns:repeat(8,1fr)}
   .bottom .nav-item{font-size:10px;letter-spacing:-.04em}
@@ -587,7 +589,7 @@ dialog.wide{width:min(760px,calc(100% - 24px))}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.8.0";
+const APP_VERSION="3.8.1";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1132,7 +1134,7 @@ function totals(){const t={value:0,cost:0,monthly:0,debt:0,debtMonthly:0,debtInt
 
 /* ================= ledger engine ================= */
 function txFlow(t){/* investor cash flow in KRW: negative = money put in */
-  if(t.debt||(t.hid&&items.some(h=>h.id===t.hid&&isDebt(h))))return 0;
+  if(t.debt)return 0;if(t.hid){const h=items.find(x=>x.id===t.hid);if(h&&isDebt(h))return 0;}
   const fx=txFx(t),a=num(t.amount);
   switch(t.kind){case"open":case"buy":case"deposit":return -a*fx;case"sell":case"withdraw":return a*fx;case"dividend":case"interest":return (a-num(t.tax))*fx;default:return 0;}}
 function netInvested(upTo){return -txs.filter(t=>!upTo||t.date<=upTo).reduce((s,t)=>s+txFlow(t),0);}
@@ -1560,9 +1562,10 @@ function renderAssets(t){$$("#aView button").forEach(b=>b.setAttribute("aria-pre
 $("#aGroup").onchange=()=>{UI.grouped=$("#aGroup").checked;saveUI();renderAssets(totals());};
 
 /* ---- ledger ---- */
-$("#lSearch").addEventListener("input",()=>renderLedger());
+$("#lSearch").addEventListener("input",()=>{ledgerLimit=200;renderLedger();});
 $("#lYear").addEventListener("change",()=>{UI.lYear=$("#lYear").value;saveUI();renderLedger();});
-function renderLedger(){const years=Array.from(new Set(txs.map(t=>t.date.slice(0,4)))).sort().reverse();
+let ledgerLimit=200;
+function renderLedger(){const hmap=Object.fromEntries(items.map(h=>[h.id,h]));const years=Array.from(new Set(txs.map(t=>t.date.slice(0,4)))).sort().reverse();
   $("#lYear").innerHTML=`<option value="all">전체 기간</option>`+years.map(y=>`<option value="${y}">${y}년</option>`).join("");if(UI.lYear!=="all"&&!years.includes(UI.lYear))UI.lYear="all";$("#lYear").value=UI.lYear;
   const kinds=["all","buy","sell","deposit","withdraw","dividend","interest","open","fee"];$("#lKind").innerHTML=kinds.map(k=>`<button data-kind="${k}" aria-pressed="${UI.lKind===k}">${k==="all"?"전체":KIND[k]}</button>`).join("");
   $$("[data-kind]").forEach(b=>b.onclick=()=>{UI.lKind=b.dataset.kind;saveUI();renderLedger();});
@@ -1572,10 +1575,12 @@ function renderLedger(){const years=Array.from(new Set(txs.map(t=>t.date.slice(0
   $("#lSummary").innerHTML=kpi("투입 (매수·입금)",short(S.in)+"원",`${list.length}건`)+kpi("회수 (매도·출금)",short(S.out)+"원")+kpi("실현손익",(S.real>=0?"+":"")+short(S.real)+"원","",sgn(S.real))+kpi("배당·이자 · 비용",short(S.inc)+"원",`수수료·세금 ${short(S.cost)}원`);
   if(!list.length){$("#lBody").innerHTML=`<div class="empty">거래 기록이 없어요<button class="btn sm" data-add-tx2>거래 기록</button></div>`;$$("[data-add-tx2]").forEach(b=>b.onclick=()=>openTx());return;}
   $("#lBody").innerHTML=`<div class="tablewrap"><table class="dense"><thead><tr><th>날짜</th><th>종류</th><th>자산</th><th class="r">수량</th><th class="r">단가</th><th class="r">금액</th><th class="r">수수료·세금</th><th class="r">실현손익(원)</th><th>메모</th><th></th></tr></thead><tbody>
-    ${list.map(t=>{const h=items.find(x=>x.id===t.hid);return `<tr style="cursor:default"><td class="num">${esc(t.date)}</td><td><span class="pill ${t.kind}">${KIND[t.kind]||t.kind}</span></td><td>${esc(h?.name||t.hname||"삭제된 자산")}${t.cur&&t.cur!=="KRW"?` <span class="pill">${t.cur}</span>`:""}</td>
+    ${list.slice(0,ledgerLimit).map(t=>{const h=hmap[t.hid];return `<tr style="cursor:default"><td class="num">${esc(t.date)}</td><td><span class="pill ${t.kind}">${KIND[t.kind]||t.kind}</span></td><td>${esc(h?.name||t.hname||"삭제된 자산")}${t.cur&&t.cur!=="KRW"?` <span class="pill">${t.cur}</span>`:""}</td>
       <td class="r num">${num(t.qty)?num(t.qty).toLocaleString("ko-KR",{maximumFractionDigits:6}):"–"}</td><td class="r num">${num(t.price)?num(t.price).toLocaleString("ko-KR",{maximumFractionDigits:2}):"–"}</td><td class="r num">${num(t.amount).toLocaleString("ko-KR",{maximumFractionDigits:2})}</td>
       <td class="r num">${num(t.fee)+num(t.tax)?won(num(t.fee)+num(t.tax)):"–"}</td><td class="r num ${t.realized!=null?sgn(rk(t)):""}">${t.realized!=null?(rk(t)>=0?"+":"")+won(rk(t)):"–"}</td><td class="small muted" style="white-space:normal;min-width:120px">${esc(t.memo||"")}</td>
       <td class="row" style="gap:10px">${t.kind!=="open"?`<button class="link small" data-edtx="${esc(t.id)}">수정</button>`:""}<button class="link small" data-deltx="${esc(t.id)}" style="color:var(--muted)">삭제</button></td></tr>`}).join("")}</tbody></table></div>`;
+  if(list.length>ledgerLimit)$("#lBody").insertAdjacentHTML("beforeend",`<div class="row" style="justify-content:center;padding-top:10px"><button class="btn ghost sm" id="lMore">${list.length-ledgerLimit}건 더 보기</button></div>`);
+  if($("#lMore"))$("#lMore").onclick=()=>{ledgerLimit+=500;renderLedger();};
   $$("[data-edtx]").forEach(b=>b.onclick=()=>openTx(null,null,null,null,b.dataset.edtx));
   $$("[data-deltx]").forEach(b=>b.onclick=async()=>{const t=txs.find(x=>x.id===b.dataset.deltx);const h=items.find(x=>x.id===t?.hid);if(await confirmBox("거래 삭제",h&&t.applied!==false&&!["open","dividend","interest"].includes(t.kind)?`이 거래가 '${h.name}'에 반영한 수량·금액도 함께 되돌려요.`:"원장에서 이 거래를 지워요.","삭제")){snapUndo();reverseTx(t,h);txs=txs.filter(x=>x.id!==t.id);persist();renderAll();toast("삭제했어요","되돌리기",undo);}});}
 
@@ -1664,7 +1669,7 @@ function renderYearEnd(t){const y=yearEnd(t);const m=new Date().getMonth();if(m<
 function renderTax(t){renderProfileStrip();renderYearEnd(t);const R=TAXR(),tr=taxReport(t),w=tr.w;const comp={small:"중소기업",mid:"중견기업",large:"대기업",public:"공공기관"}[PROFILE.company]||"중견기업";
   $("#taxSub").textContent=`${R.year}년 귀속 · ${comp} 근로자 · 총급여 ${short(w.g)}원 기준 추정치`;
   const w2=wageTax(extraPension);const gain=(w.total-w2.total);
-  $("#taxKpis").innerHTML=kpi("예상 결정세액",short(w.total)+"원",`소득세 ${short(w.decided)} + 지방소득세 ${short(w.local)}`)+kpi("한계세율",pctp(w.marg,0)+` (+지방 ${pctp(w.marg*.1,1)})`,`과세표준 ${short(w.base)}원`,"","추가 소득 1원당 붙는 세율. 소득공제 효과도 이 세율만큼 생겨요.")+
+  $("#taxKpis").innerHTML=kpi("예상 결정세액",short(w.total)+"원",`소득세 ${short(w.decided)} + 지방소득세 ${short(w.local)}`)+kpi("한계세율",pctp(w.marg,0),`지방세 포함 ${pctp(w.marg*1.1,1)} · 과세표준 ${short(w.base)}원`,"","추가 소득 1원당 붙는 세율. 소득공제 효과도 이 세율만큼 생겨요.")+
     kpi("연금계좌 세액공제",short(w.pensCredit*(1+R.local))+"원",`연말까지 예상 납입 ${short(w.pensTot)}원 / ${short(R.pension.total)}원`,"pos")+kpi("4대보험 (근로자 부담)",short(w.si.total)+"원",`월 ${short(w.si.total/12)}원`);
   const row=(l,v,n,b)=>`<tr style="cursor:default"><td style="white-space:normal${b?";font-weight:700":""}">${l}${n?` <span class="xs muted">${n}</span>`:""}</td><td class="r num"${b?' style="font-weight:700"':""}>${v}</td></tr>`;
   $("#wageTbl").innerHTML=`<div class="tablewrap"><table class="dense" style="min-width:0"><tbody>
