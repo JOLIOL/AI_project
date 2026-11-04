@@ -285,6 +285,18 @@ body.locked .app,body.locked dialog{visibility:hidden}
  body.print-report #rpDlg .actions{display:none}
  body.print-report dialog:not(#rpDlg){display:none!important}}
 @media print{body.print-report #rpDlg{border-radius:0;margin:0;max-width:none}body.print-report dialog::backdrop{background:none}body.print-report{background:#fff}}
+
+body.dense-ui{font-size:14px}
+body.dense-ui .card{padding:16px;gap:10px;border-radius:16px}
+body.dense-ui .page{gap:14px}
+body.dense-ui .grid{gap:14px}
+body.dense-ui .kpi{padding:12px 14px}
+body.dense-ui .kpi .v{font-size:18px}
+body.dense-ui .tile{padding:10px 12px}
+body.dense-ui .big{font-size:28px}
+body.dense-ui table.dense th,body.dense-ui table.dense td{padding:6px 8px}
+body.dense-ui .item{padding:8px 4px}
+body.dense-ui main{padding-block:18px 36px}
 </style>
 </head>
 <body>
@@ -340,7 +352,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
         <div class="card">
           <div class="toolbar">
             <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="aSearch" placeholder="이름·티커 검색  ( / )" aria-label="자산 검색"></label>
-            <div class="chips" id="aOwner"></div><div class="chips" id="aAcct"></div>
+            <div class="chips" id="aOwner"></div><div class="chips" id="aTags"></div><div class="chips" id="aAcct"></div>
             <label class="inline-check"><input type="checkbox" id="aGroup" checked>유형별 묶기</label><div class="seg" id="aView"><button data-v="table" aria-pressed="true">표</button><button data-v="list" aria-pressed="false">카드</button></div>
           </div>
           <div id="aOwnerSum"></div><div id="aBody"></div>
@@ -560,6 +572,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
       <label class="field" id="f-maturity-wrap"><span id="lb-maturity">만기일</span><input id="f-maturity" type="date"></label>
       <label class="field"><span id="lb-start">보유 시작일</span><input id="f-start" type="date"></label>
     </div>
+    <div class="fields"><label class="field">태그 (쉼표로 구분)<input id="f-tags" placeholder="예: 배당, 장기, 비상금"></label><label class="field" style="grid-column:span 2">메모 (투자 이유·매도 조건 등)<input id="f-note" placeholder="예: 3년 보유, PER 15 넘으면 일부 매도"></label></div>
     <label class="inline-check" id="f-autopay-wrap" hidden><input type="checkbox" id="f-autopay"><span id="lb-autopay">매달 월급날 자동 납입 기록</span></label>
     <div class="note" id="holdHint">통화가 USD면 금액·단가를 달러로 입력하세요. 원화 환산은 설정의 환율을 씁니다.</div>
     <div class="actions"><button type="button" class="btn danger" id="holdDel" hidden>삭제</button><span class="grow"></span><button type="button" class="btn ghost" data-close>취소</button><button type="submit" class="btn">저장</button></div>
@@ -626,6 +639,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
       <div class="row between wrap"><span>화면 테마</span><div class="seg" id="themeSeg"><button data-theme-set="system">시스템</button><button data-theme-set="light">라이트</button><button data-theme-set="dark">다크</button></div></div>
       <div class="row between wrap"><span>화면 잠금 PIN</span><div class="row"><span class="wt"><input id="pinNew" type="password" inputmode="numeric" maxlength="8" placeholder="숫자 4~8자리" style="width:130px" aria-label="새 PIN"></span><button class="btn sm ghost" id="pinBtn">켜기</button></div></div>
       <div class="xs muted" id="pinNote"></div>
+      <div class="row between wrap"><span>촘촘한 화면 (정보 밀도 높게)</span><label class="inline-check"><input type="checkbox" id="denseChk">사용</label></div>
       <div class="row between wrap"><span>바탕화면 알림</span><button class="btn sm ghost" id="notifyBtn">켜기</button></div>
       <div class="xs muted" id="notifyNote"></div>
       <div class="row between wrap"><span>원/달러 환율</span><div class="row"><span class="wt"><input id="fxInput" type="number" min="100" step="1" style="width:110px" aria-label="환율"></span><button class="btn sm ghost" id="fxNow">지금 갱신</button><button class="btn sm ghost" id="fxAuto">자동값 사용</button></div></div>
@@ -673,7 +687,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
   <label class="field">갱신·만기·해지 기한<input id="fx-renew" type="date"></label>
   <label class="field" style="grid-column:1/-1">메모<input id="fx-memo" placeholder="예: 보장 내용, 해지 방법"></label></div>
   <div class="actions"><button type="button" class="btn danger" id="fxDel" hidden>삭제</button><span class="grow"></span><button type="button" class="btn ghost" data-close>취소</button><button type="submit" class="btn">저장</button></div></form></dialog>
-<dialog id="detDlg" class="wide"><div class="sheet"><h2 class="row" id="detTitle" style="gap:12px"></h2><div class="split" id="detTiles"></div><div class="sec-title">거래 내역</div><div id="detTx"></div>
+<dialog id="detDlg" class="wide"><div class="sheet"><h2 class="row" id="detTitle" style="gap:12px"></h2><div class="split" id="detTiles"></div><div id="detNote"></div><div class="sec-title">거래 내역</div><div id="detTx"></div>
   <div class="actions"><button class="btn ghost" data-close>닫기</button><span class="grow"></span><button class="btn ghost" id="detTx2">거래 기록</button><button class="btn" id="detEdit">자산 수정</button></div></div></dialog>
 <dialog id="cmapDlg" class="wide"><div class="sheet"><h2>거래내역 가져오기</h2><div class="xs muted" id="cmapInfo"></div>
   <div class="note">은행·증권사 앱에서 내려받은 거래내역 CSV의 열을 맞춰 주세요. 머리글을 보고 자동으로 골라 두었어요. 엑셀(xlsx) 파일은 'CSV로 저장' 후 불러오세요.</div>
@@ -688,7 +702,7 @@ body.locked .app,body.locked dialog{visibility:hidden}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.20.0";
+const APP_VERSION="3.21.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1191,7 +1205,7 @@ const GROUPS={cash:"현금·입출금",saving:"예적금·청약",invest:"투자
 const CLASSES={cash:{label:"현금성",c:"--c6"},fixed:{label:"예적금",c:"--c2"},bond:{label:"채권",c:"--c8"},equity:{label:"주식·펀드",c:"--c5"},pension:{label:"연금",c:"--c7"},alt:{label:"대체투자",c:"--c3"},realty:{label:"부동산·보증금",c:"--c4"}};
 const LEGACY={cash:"parking",stock:"kstock"};
 const isDebt=h=>(TYPES[h.type]||{}).mode==="debt";
-const members=()=>{const m=String(PROFILE.members||"본인").split(/[,，]/).map(x=>x.trim()).filter(Boolean);return m.length?m:["본인"];};const ownerOf=h=>h.owner||members()[0];
+const members=()=>{const m=String(PROFILE.members||"본인").split(/[,，]/).map(x=>x.trim()).filter(Boolean);return m.length?m:["본인"];};const ownerOf=h=>h.owner||members()[0];const tagsOf=h=>String(h.tags||"").split(/,\s*/).filter(Boolean);
 const typeOpts=()=>Object.entries(GROUPS).map(([g,l])=>`<optgroup label="${l}">${Object.entries(TYPES).filter(([,v])=>v.grp===g).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join("")}</optgroup>`).join("");
 const ACCT_COLORS=["--c1","--c2","--c3","--c4","--c5","--c6","--c7","--c8"];
 const KIND={open:"보유 시작",buy:"매수",sell:"매도",deposit:"입금·납입",withdraw:"출금·해지",dividend:"배당",interest:"이자",fee:"수수료",repay:"대출 상환",borrow:"추가 대출"};
@@ -1294,9 +1308,11 @@ function modelRisk(t){const inv=investable(t);if(!inv)return null;let mu=0,ws=[]
   const sig=Math.sqrt(Math.max(0,varp));return {mu,sig,inv,var95:inv*Math.max(0,1.645*sig-mu),cvar:inv*Math.max(0,2.063*sig-mu)};}
 
 /* ================= theme ================= */
+function applyDensity(){document.body.classList.toggle("dense-ui",!!UI.dense);if($("#denseChk"))$("#denseChk").checked=!!UI.dense;}
 function applyTheme(){const t=LS.get(K.theme,"system");if(t==="system")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",t);
   $$("#themeSeg button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.themeSet===t)));}
 $$("#themeSeg button").forEach(b=>b.onclick=()=>{LS.set(K.theme,b.dataset.themeSet);applyTheme();});applyTheme();
+$("#denseChk").onchange=()=>{UI.dense=$("#denseChk").checked;saveUI();applyDensity();};applyDensity();
 
 /* ================= nav ================= */
 const ICONS={home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',assets:'<rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2"/>',
@@ -1342,7 +1358,7 @@ $("#f-type").addEventListener("change",()=>syncForm(!editingId));$("#f-useqty").
 function openHolding(id,presetType){editingId=id||null;const h=items.find(x=>x.id===id);const ty=h?.type||presetType||"kstock";
   $("#holdTitle").textContent=h?"자산 수정":"자산 추가";$("#holdDel").hidden=!h;
   const set=(i,v)=>$("#"+i).value=v??"";
-  $("#f-owner").innerHTML=members().map(m=>`<option>${esc(m)}</option>`).join("");$("#f-owner-wrap").hidden=members().length<2;set("f-owner",h?ownerOf(h):members()[0]);set("f-type",ty);set("f-name",h?.name);set("f-account",h?.account);set("f-currency",h?.currency||"KRW");set("f-ticker",h?.ticker);
+  $("#f-owner").innerHTML=members().map(m=>`<option>${esc(m)}</option>`).join("");$("#f-owner-wrap").hidden=members().length<2;set("f-owner",h?ownerOf(h):members()[0]);set("f-tags",h?.tags||"");set("f-note",h?.note||"");set("f-type",ty);set("f-name",h?.name);set("f-account",h?.account);set("f-currency",h?.currency||"KRW");set("f-ticker",h?.ticker);
   set("f-qty",h&&num(h.qty)?h.qty:"");set("f-avg",h&&num(h.avg)?h.avg:"");set("f-price",h&&num(h.price)?h.price:"");set("f-div",h?.divYield||"");set("f-tgt",h?.tgtPrice||"");set("f-stop",h?.stopPrice||"");set("f-divfreq",h?.divFreq||DIV_DEFAULT[ty]||"q");
   set("f-avgfx",Math.round((h&&h.currency!=="KRW"&&num(h.avgFx)?num(h.avgFx):fxRate(h?.currency&&h.currency!=="KRW"?h.currency:(TYPES[ty].usd?"USD":"USD")))*100)/100);
   set("f-value",h&&!isSec(h)?h.value:"");set("f-principal",h&&!isSec(h)?h.principal:"");set("f-monthly",h?.monthly||"");set("f-rate",h?h.rate:"");set("f-maturity",h?.maturity);set("f-start",h?.start||today());
@@ -1352,7 +1368,7 @@ $("#holdForm").addEventListener("submit",e=>{e.preventDefault();
   const g=i=>$("#"+i).value;const type=g("f-type"),T=TYPES[type];const q=useQty();const qty=q?num(g("f-qty")):0,avg=num(g("f-avg")),price=num(g("f-price"));
   if(q&&!(qty>0)){toast("보유 수량을 입력하세요");return;}if(!q&&!(num(g("f-value"))>0)&&!(num(g("f-principal"))>0)){toast(T.mode==="debt"?"대출 잔액을 입력하세요":"금액을 입력하세요");return;}
   const prev=items.find(x=>x.id===editingId);const cur=g("f-currency");
-  const h={...(prev||{}),id:editingId||uid(),kind:"holding",type,name:g("f-name").trim()||T.label,account:g("f-account").trim(),owner:g("f-owner")||members()[0],currency:cur,ticker:g("f-ticker").trim(),
+  const h={...(prev||{}),id:editingId||uid(),kind:"holding",type,name:g("f-name").trim()||T.label,tags:g("f-tags").split(/[,#\s]+/).map(x=>x.trim()).filter(Boolean).join(", "),note:g("f-note").trim(),account:g("f-account").trim(),owner:g("f-owner")||members()[0],currency:cur,ticker:g("f-ticker").trim(),
     qty:q?qty:0,avg:q?(avg||price):0,price:q?(price||avg):0,divYield:num(g("f-div")),divFreq:g("f-divfreq"),tgtPrice:num(g("f-tgt"))||0,stopPrice:num(g("f-stop"))||0,
     value:q?0:num(g("f-value")),principal:q?0:(g("f-principal")===""?num(g("f-value")):num(g("f-principal"))),
     avgFx:cur!=="KRW"?(num(g("f-avgfx"))||fxRate(cur)):0,monthly:num(g("f-monthly")),rate:g("f-rate")===""?(["invest","pension"].includes(T.grp)?assum(type).r:T.rate):num(g("f-rate")),
@@ -1377,6 +1393,7 @@ function openDetail(id){const h=items.find(x=>x.id===id);if(!h)return;detailId=i
      isSec(h)?["보유",`${num(h.qty).toLocaleString("ko-KR",{maximumFractionDigits:6})}${h.type==="crypto"?"개":"주"}`,"",`평단 ${num(h.avg).toLocaleString("ko-KR",{maximumFractionDigits:2})} → 현재 ${num(h.price).toLocaleString("ko-KR",{maximumFractionDigits:2})}`]:["금리·기대수익",num(h.rate).toFixed(2)+"%","",me?`만기 예상 ${short(me.amt)}원 (세후)`:h.monthly?`월 ${short(h.monthly)}원${h.autopay?" 자동":""}`:""]];
   if(r.fx)tiles.push(["환차손익",(r.fx>=0?"+":"")+won(r.fx)+"원",sgn(r.fx),`매입 ${num(h.avgFx).toFixed(2)} → 현재 ${fxRate(h.currency).toFixed(2)}`]);
   $("#detTiles").innerHTML=tiles.map(([k,v_,cls,n])=>`<div class="tile"><div class="k">${k}</div><div class="v num ${cls}">${v_}</div><div class="n">${n||""}</div></div>`).join("");
+  $("#detNote").innerHTML=h.note||tagsOf(h).length?`<div class="alert"><span class="dot" style="background:var(--info)"></span><span>${tagsOf(h).map(t=>`<b style="color:var(--accent)">#${esc(t)}</b> `).join("")}${h.note?`<br><span class="small ink2" style="white-space:pre-wrap">${esc(h.note)}</span>`:""}</span></div>`:"";
   const own=txs.filter(x=>x.hid===id).sort((a,b)=>a.date<b.date?1:-1);
   $("#detTx").innerHTML=own.length?`<div class="tablewrap"><table class="dense" style="min-width:420px"><tbody>${own.slice(0,30).map(x=>`<tr style="cursor:default"><td class="num">${x.date}</td><td><span class="pill ${x.kind}">${KIND[x.kind]||x.kind}</span></td><td class="r num">${num(x.qty)?num(x.qty).toLocaleString("ko-KR"):""}</td><td class="r num">${won(x.amount)}</td><td class="r num ${x.realized!=null?sgn(rk(x)):""}">${x.realized!=null?(rk(x)>=0?"+":"")+short(rk(x)):""}</td><td class="small muted">${esc(x.memo||"")}</td><td>${x.kind!=="open"?`<button class="link small" data-detedit="${esc(x.id)}">수정</button>`:""}</td></tr>`).join("")}</tbody></table></div>${own.length>30?`<div class="xs muted">최근 30건만 표시 · 전체는 원장에서</div>`:""}`:'<div class="note">거래 기록이 없어요.</div>';
   $$("[data-detedit]").forEach(b=>b.onclick=()=>{$("#detDlg").close();openTx(null,null,null,null,b.dataset.detedit);});
@@ -1643,6 +1660,7 @@ function renderAssets(t){$$("#aView button").forEach(b=>b.setAttribute("aria-pre
     kpi("부채",t.debt?short(t.debt)+"원":"없음",t.debt?`연 이자 약 ${short(t.debtInterest)} · 월 상환 ${short(t.debtMonthly)}`:"대출을 추가하면 순자산에 반영돼요",t.debt?"neg":"")+
     kpi("기대수익률 · 변동성",mr?`${pctp(mr.mu)} · ${pctp(mr.sig)}`:"–","자산군 가정치 가중 (연)","","보유 비중 × 자산군별 장기 기대수익률·변동성. 가이드 화면에서 가정치를 확인할 수 있어요.");
   const mem=members();if(mem.length>1){if(!["전체",...mem].includes(UI.owner))UI.owner="전체";$("#aOwner").innerHTML=["전체",...mem].map(o=>`<button data-own="${esc(o)}" aria-pressed="${o===UI.owner}">${o==="전체"?"가족 전체":esc(o)}</button>`).join("");$$("[data-own]").forEach(b=>b.onclick=()=>{UI.owner=b.dataset.own;saveUI();renderAssets(totals());});}else{$("#aOwner").innerHTML="";UI.owner="전체";}
+  const allTags=Array.from(new Set(items.flatMap(tagsOf)));if(UI.tag&&!allTags.includes(UI.tag))UI.tag="";$("#aTags").innerHTML=allTags.length?allTags.map(t=>`<button data-tag="${esc(t)}" aria-pressed="${t===UI.tag}">#${esc(t)}</button>`).join(""):"";$$("[data-tag]").forEach(b=>b.onclick=()=>{UI.tag=UI.tag===b.dataset.tag?"":b.dataset.tag;saveUI();renderAssets(totals());});
   const accts=["전체",...Array.from(new Set(items.map(h=>h.account||"미지정")))];if(!accts.includes(UI.acct))UI.acct="전체";
   $("#aAcct").innerHTML=accts.map(a=>`<button data-acct="${esc(a)}" aria-pressed="${a===UI.acct}">${esc(a)}</button>`).join("");
   $$("[data-acct]").forEach(b=>b.onclick=()=>{UI.acct=b.dataset.acct;saveUI();renderAssets(totals());});
@@ -1651,10 +1669,10 @@ function renderAssets(t){$$("#aView button").forEach(b=>b.setAttribute("aria-pre
   if(!items.length){$("#aBody").innerHTML=`<div class="empty">아직 등록한 자산이 없어요. 위 버튼으로 월급통장부터 하나씩 추가해 보세요.<div class="row"><button class="btn sm" data-add3>자산 추가</button><button class="btn sm ghost" data-example>예시로 둘러보기</button></div></div>`;
     $$("[data-add3]").forEach(b=>b.onclick=()=>openHolding(null,"checking"));$$("[data-example]").forEach(b=>b.onclick=loadExample);return;}
   const q=$("#aSearch").value.trim().toLowerCase();const gOrder=Object.keys(GROUPS),tOrder=Object.keys(TYPES);
-  let rows=items.filter(h=>(UI.owner==="전체"||!UI.owner||ownerOf(h)===UI.owner)&&(UI.acct==="전체"||(h.account||"미지정")===UI.acct)&&(!q||(h.name+" "+(h.ticker||"")+" "+(h.account||"")+" "+TYPES[h.type].label).toLowerCase().includes(q))).map(h=>{const v=valKRW(h),c=costKRW(h),debt=isDebt(h);
+  let rows=items.filter(h=>(UI.owner==="전체"||!UI.owner||ownerOf(h)===UI.owner)&&(UI.acct==="전체"||(h.account||"미지정")===UI.acct)&&(!q||(h.name+" "+(h.ticker||"")+" "+(h.account||"")+" "+TYPES[h.type].label+" "+(h.tags||"")+" "+(h.note||"")).toLowerCase().includes(q))&&(!UI.tag||tagsOf(h).includes(UI.tag))).map(h=>{const v=valKRW(h),c=costKRW(h),debt=isDebt(h);
     return {h,debt,krw:v,cost:c,gain:debt?0:v-c,ret:debt||!c?0:(v-c)/c,w:debt?(t.value?v/t.value:0):(t.value?v/t.value:0),name:h.name,type:tOrder.indexOf(h.type),grp:gOrder.indexOf(TYPES[h.type].grp),acct:h.account||"",rate:num(h.rate),fxg:fxGainKRW(h),mat:maturityEst(h)}});
   const k=UI.sortK,d=UI.sortD;rows.sort((a,b)=>{if(UI.grouped&&a.grp!==b.grp)return a.grp-b.grp;const x=a[k],y=b[k];return (typeof x==="string"?x.localeCompare(y,"ko"):x-y)*d;});
-  const meta=r=>{const h=r.h;const md=h.maturity?Math.ceil(days(today(),h.maturity)):null;return [esc(h.account||"계좌 미지정"),TYPES[h.type].label,isSec(h)?`${num(h.qty).toLocaleString("ko-KR",{maximumFractionDigits:6})}${h.type==="crypto"?"개":"주"}`:"",h.monthly?`${r.debt?"월 상환":"월"} ${short(h.monthly)}${h.autopay?" (자동)":""}`:"",md!=null&&md>=0?`만기 D-${md}`:"",r.mat?`만기 예상 ${short(r.mat.amt)} (세후)`:"",r.debt?`금리 ${num(h.rate).toFixed(2)}%`:""].filter(Boolean).join(" · ");};
+  const meta=r=>{const h=r.h;const md=h.maturity?Math.ceil(days(today(),h.maturity)):null;return [esc(h.account||"계좌 미지정"),TYPES[h.type].label,isSec(h)?`${num(h.qty).toLocaleString("ko-KR",{maximumFractionDigits:6})}${h.type==="crypto"?"개":"주"}`:"",h.monthly?`${r.debt?"월 상환":"월"} ${short(h.monthly)}${h.autopay?" (자동)":""}`:"",md!=null&&md>=0?`만기 D-${md}`:"",r.mat?`만기 예상 ${short(r.mat.amt)} (세후)`:"",r.debt?`금리 ${num(h.rate).toFixed(2)}%`:"",tagsOf(h).map(t=>"#"+esc(t)).join(" ")].filter(Boolean).join(" · ");};
   if(UI.owner&&UI.owner!=="전체"){const a=rows.filter(r=>!r.debt).reduce((s,r)=>s+r.krw,0),d=rows.filter(r=>r.debt).reduce((s,r)=>s+r.krw,0);$("#aOwnerSum").innerHTML=`<span class="chip accent">${esc(UI.owner)} · 자산 ${short(a)}원${d?` · 부채 ${short(d)}원 · 순자산 ${short(a-d)}원`:""}</span>`;}else $("#aOwnerSum").innerHTML="";
   if(viewMode()==="list"){let lastG=-1;$("#aBody").innerHTML=`<div class="list">${rows.map(r=>{const h=r.h;let head="";if(UI.grouped&&r.grp!==lastG){lastG=r.grp;const g=gOrder[r.grp];const sub=rows.filter(x=>x.grp===r.grp).reduce((s,x)=>s+x.krw,0);head=`<div class="row between" style="padding:14px 4px 4px"><span class="sec-title" style="margin:0">${GROUPS[g]}</span><span class="small num ${g==="debt"?"neg":""}">${g==="debt"?"−":""}${short(sub)}원</span></div>`;}
       return head+`<button class="item" data-edit="${esc(h.id)}">${avatar(h.type)}<div class="main"><div class="name">${esc(h.name)}</div><div class="meta">${meta(r)}</div></div>
@@ -1663,7 +1681,7 @@ function renderAssets(t){$$("#aView button").forEach(b=>b.setAttribute("aria-pre
     const fmtN=(v,dd)=>num(v).toLocaleString("ko-KR",{maximumFractionDigits:dd});let lastG=-1;const assetRows=rows.filter(r=>!r.debt);const sum=assetRows.reduce((s,r)=>({krw:s.krw+r.krw,cost:s.cost+r.cost}),{krw:0,cost:0});
     const body=rows.map(r=>{const h=r.h;let head="";if(UI.grouped&&r.grp!==lastG){lastG=r.grp;const g=gOrder[r.grp];const grs=rows.filter(x=>x.grp===r.grp);const sv=grs.reduce((s,x)=>s+x.krw,0),sc=grs.reduce((s,x)=>s+x.cost,0);
         head=`<tr class="grp" style="cursor:default"><td class="sticky-col" colspan="3"><b>${GROUPS[g]}</b> <span class="xs muted">${grs.length}개</span></td><td></td><td></td><td></td><td class="r num muted">${g==="debt"?"":won(sc)}</td><td class="r num"><b class="${g==="debt"?"neg":""}">${g==="debt"?"−":""}${won(sv)}</b></td><td class="r num ${g==="debt"?"":sgn(sv-sc)}">${g==="debt"?"":(sv-sc>=0?"+":"")+won(sv-sc)}</td><td></td><td></td><td class="r num">${t.value?pctp(sv/t.value):""}</td><td></td></tr>`;}
-      return head+`<tr data-edit="${esc(h.id)}"><td class="sticky-col"><b>${esc(h.name)}</b>${h.ticker?` <span class="xs muted">${esc(h.ticker)}</span>`:""}${h.currency!=="KRW"?` <span class="pill">${h.currency}</span>`:""}${h.autopay?' <span class="pill dividend">자동</span>':""}${members().length>1?` <span class="pill">${esc(ownerOf(h))}</span>`:""}${r.mat?`<div class="xs muted">만기 예상 ${short(r.mat.amt)} (세후)</div>`:""}</td><td>${esc(h.account||"–")}</td><td><span class="badge-dot" style="background:var(${TYPES[h.type]?.c})"></span>${TYPES[h.type]?.label||""}</td>
+      return head+`<tr data-edit="${esc(h.id)}"><td class="sticky-col"><b>${esc(h.name)}</b>${h.ticker?` <span class="xs muted">${esc(h.ticker)}</span>`:""}${h.currency!=="KRW"?` <span class="pill">${h.currency}</span>`:""}${h.autopay?' <span class="pill dividend">자동</span>':""}${members().length>1?` <span class="pill">${esc(ownerOf(h))}</span>`:""}${tagsOf(h).map(t=>` <span class="xs" style="color:var(--accent)">#${esc(t)}</span>`).join("")}${r.mat?`<div class="xs muted">만기 예상 ${short(r.mat.amt)} (세후)</div>`:""}</td><td>${esc(h.account||"–")}</td><td><span class="badge-dot" style="background:var(${TYPES[h.type]?.c})"></span>${TYPES[h.type]?.label||""}</td>
         <td class="r num">${isSec(h)?fmtN(h.qty,6):"–"}</td><td class="r num">${isSec(h)?fmtN(h.avg,2):"–"}</td><td class="r num">${isSec(h)?fmtN(h.price,2):"–"}</td>
         <td class="r num">${won(r.cost)}</td><td class="r num"><b class="${r.debt?"neg":""}">${r.debt?"−":""}${won(r.krw)}</b></td><td class="r num ${r.debt?"":sgn(r.gain)}">${r.debt?"–":(r.gain>=0?"+":"")+won(r.gain)}</td><td class="r num ${r.debt?"":sgn(r.ret)}">${r.debt?"–":pct(r.ret,2)}</td>
         <td class="r num ${r.fxg?sgn(r.fxg):"muted"}">${r.fxg?(r.fxg>=0?"+":"")+short(r.fxg):"–"}</td><td class="r num">${pctp(r.w)}</td><td class="r num">${num(h.rate).toFixed(1)}</td></tr>`}).join("");
@@ -2061,7 +2079,7 @@ function applyBackup(v){snapUndo();{
   if(Array.isArray(v))items=v;else{if(!Array.isArray(v.holdings))throw 0;items=v.holdings;txs=Array.isArray(v.transactions)?v.transactions:[];goals=Array.isArray(v.goals)?v.goals:goals;if(v.profile)PROFILE={...DEFAULT_PROFILE,...v.profile};if(Array.isArray(v.history))hist=v.history;if(v.targets)LS.set(K.targets,v.targets);if(Array.isArray(v.flows)){flows=v.flows;LS.set(K.flow,flows);}if(Array.isArray(v.fixeds)){fixeds=v.fixeds;LS.set("jasan-fixed",fixeds);}if(v.homebuy){HB={...HB_DEF,...v.homebuy};LS.set(HB_KEY,HB);}if(v.retire){RET={...retDefaults(),...v.retire};LS.set(RET_KEY,RET);}}
   items=items.map(h=>{const x={currency:"KRW",account:"",start:today(),...h};if(LEGACY[x.type])x.type=x.type==="stock"&&x.currency==="USD"?"ostock":LEGACY[x.type];if(!TYPES[x.type])x.type="other";return x;});ensureOpenTx();LS.set(K.goals,goals);LS.set(K.profile,PROFILE);LS.set(K.hist,hist);persist();fillSal();renderAll();}}
 const csvCell=v=>{const s=String(v??"");return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
-const HCOLS=[["유형",h=>TYPES[h.type]?.label||h.type],["상품명",h=>h.name],["계좌",h=>h.account],["소유자",h=>ownerOf(h)],["통화",h=>h.currency],["티커",h=>h.ticker],["수량",h=>num(h.qty)||""],["평균단가",h=>num(h.avg)||""],["현재가",h=>num(h.price)||""],["평가액",h=>isSec(h)?"":num(h.value)],["원금",h=>isSec(h)?"":num(h.principal)],["월납입",h=>num(h.monthly)||""],["기대수익률",h=>num(h.rate)],["배당률",h=>num(h.divYield)||""],["만기일",h=>h.maturity||""],["시작일",h=>h.start||""],["평가액(원)",h=>Math.round(valKRW(h))],["손익(원)",h=>Math.round(valKRW(h)-costKRW(h))]];
+const HCOLS=[["유형",h=>TYPES[h.type]?.label||h.type],["상품명",h=>h.name],["계좌",h=>h.account],["소유자",h=>ownerOf(h)],["태그",h=>h.tags||""],["메모",h=>h.note||""],["통화",h=>h.currency],["티커",h=>h.ticker],["수량",h=>num(h.qty)||""],["평균단가",h=>num(h.avg)||""],["현재가",h=>num(h.price)||""],["평가액",h=>isSec(h)?"":num(h.value)],["원금",h=>isSec(h)?"":num(h.principal)],["월납입",h=>num(h.monthly)||""],["기대수익률",h=>num(h.rate)],["배당률",h=>num(h.divYield)||""],["만기일",h=>h.maturity||""],["시작일",h=>h.start||""],["평가액(원)",h=>Math.round(valKRW(h))],["손익(원)",h=>Math.round(valKRW(h)-costKRW(h))]];
 $("#csvHold").onclick=()=>{download("jasan-holdings-"+today()+".csv","﻿"+[HCOLS.map(c=>c[0]).join(","),...items.map(h=>HCOLS.map(c=>csvCell(c[1](h))).join(","))].join("\r\n"),"text/csv");toast("CSV를 저장했어요");};
 $("#csvTx").onclick=()=>{const cols=["날짜","종류","자산","통화","수량","단가","금액","수수료","세금","실현손익","메모"];download("jasan-transactions-"+today()+".csv","﻿"+[cols.join(","),...txs.map(t=>[t.date,KIND[t.kind]||t.kind,items.find(h=>h.id===t.hid)?.name||t.hname,t.cur,num(t.qty)||"",num(t.price)||"",num(t.amount),num(t.fee),num(t.tax),t.realized!=null?Math.round(t.realized):"",t.memo].map(csvCell).join(","))].join("\r\n"),"text/csv");toast("CSV를 저장했어요");};
 function parseCSV(text){const rows=[];let row=[],cell="",q=false;text=text.replace(/^﻿/,"");for(let i=0;i<text.length;i++){const c=text[i];
