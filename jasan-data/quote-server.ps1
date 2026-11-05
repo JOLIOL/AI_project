@@ -19,6 +19,7 @@ $listener.Prefixes.Add("http://localhost:$Port/")
 try { $listener.Start() } catch { exit 0 }   # 이미 실행 중이면 종료
 
 $cache = @{}
+$StooqMap = @{ '^GSPC' = @('^spx', 'USD'); '^IXIC' = @('^ndq', 'USD'); 'KRW=X' = @('usdkrw', 'KRW'); 'JPYKRW=X' = @('jpykrw', 'KRW'); 'EURKRW=X' = @('eurkrw', 'KRW'); 'GC=F' = @('xauusd', 'USD') }
 $lastHit = Get-Date
 
 function Get-Json([string]$url) {
@@ -30,8 +31,8 @@ function Get-Json([string]$url) {
 function To-Num($v) { if ($null -eq $v) { return $null }; $s = [string]$v; $s = $s -replace '[,\s%+]', ''; $d = 0.0; if ([double]::TryParse($s, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { return $d }; return $null }
 
 function Quote-Yahoo([string]$sym) {
-  $u = "$Yahoo/v8/finance/chart/" + [Uri]::EscapeDataString($sym) + '?range=5d&interval=1d'
-  $j = Get-Json $u
+  $path = '/v8/finance/chart/' + [Uri]::EscapeDataString($sym) + '?range=5d&interval=1d'
+  try { $j = Get-Json ($Yahoo + $path) } catch { if ($env:JASAN_UPSTREAM) { throw }; $j = Get-Json ('https://query2.finance.yahoo.com' + $path) }
   $res = $j.chart.result[0]; if (-not $res) { return $null }
   $m = $res.meta; $price = To-Num $m.regularMarketPrice; if (-not $price) { return $null }
   $prev = To-Num $m.previousClose
@@ -55,13 +56,14 @@ function Quote-Upbit([string]$mkt) {
   $price = To-Num $t.trade_price; $prev = To-Num $t.prev_closing_price
   return @{ price = $price; prev = $prev; currency = 'KRW'; time = [int64]([double]$t.trade_timestamp / 1000); name = $mkt; src = 'Upbit'; symbol = $mkt }
 }
-function Quote-Stooq([string]$sym) {
-  $r = Invoke-WebRequest -Uri ("$Stooq/q/l/?s=" + $sym.ToLower() + '.us&f=sd2t2ohlc&h&e=csv') -UserAgent $UA -UseBasicParsing -TimeoutSec 8
+function Quote-Stooq([string]$sym, [string]$full = '', [string]$cur = 'USD') {
+  $code = if ($full) { $full } else { $sym.ToLower() + '.us' }
+  $r = Invoke-WebRequest -Uri ("$Stooq/q/l/?s=" + [Uri]::EscapeDataString($code) + '&f=sd2t2ohlc&h&e=csv') -UserAgent $UA -UseBasicParsing -TimeoutSec 8
   $lines = ([Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray())) -split "`n"
   if ($lines.Count -lt 2) { return $null }
   $f = $lines[1].Trim() -split ','
   $price = To-Num $f[6]; if (-not $price) { return $null }
-  return @{ price = $price; prev = $null; currency = 'USD'; time = [int64]([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()); name = $sym; src = 'Stooq'; symbol = $sym }
+  return @{ price = $price; prev = $null; currency = $cur; time = [int64]([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()); name = $sym; src = 'Stooq'; symbol = $sym }
 }
 function Quote-NaverIndex([string]$code) {
   $j = Get-Json "$Naver/api/index/$code/basic"
@@ -84,6 +86,7 @@ function Get-Quote([string]$s) {
       try { $q = Quote-Yahoo $key } catch { $q = $null }
       if (-not $q -and $key -eq '^KS11') { $q = Quote-NaverIndex 'KOSPI' }
       elseif (-not $q -and $key -eq '^KQ11') { $q = Quote-NaverIndex 'KOSDAQ' }
+      elseif (-not $q -and $StooqMap.ContainsKey($key)) { $m = $StooqMap[$key]; $q = Quote-Stooq $key $m[0] $m[1] }
       elseif (-not $q -and $key -match '^[A-Z][A-Z0-9.\-]{0,9}$' -and $key -notmatch '\.') { $q = Quote-Stooq $key }
     }
   } catch { $q = $null }
@@ -177,6 +180,12 @@ while ($listener.IsListening) {
       $range = [string]$qs['range']; if ($range -notmatch '^(1mo|3mo|6mo|1y|2y|5y)$') { $range = '1y' }
       $h = Get-Hist ([string]$qs['s']) $range
       if ($h) { Send $ctx 200 $h } else { Send $ctx 404 @{ error = 'not_found' } }
+    }
+    elseif ($path -eq '/diag') {
+      $d = [ordered]@{ ps = $PSVersionTable.PSVersion.ToString(); os = [Environment]::OSVersion.VersionString }
+      $tests = [ordered]@{ yahoo = { Quote-Yahoo 'AAPL' }; naver = { Quote-Naver '005930' }; upbit = { Quote-Upbit 'KRW-BTC' }; stooq = { Quote-Stooq 'AAPL' } }
+      foreach ($k in $tests.Keys) { $sw = [Diagnostics.Stopwatch]::StartNew(); try { $r = & $tests[$k]; if ($r -and $r.price) { $d[$k] = @{ ok = $true; price = $r.price; ms = $sw.ElapsedMilliseconds } } else { $d[$k] = @{ ok = $false; err = 'empty'; ms = $sw.ElapsedMilliseconds } } } catch { $d[$k] = @{ ok = $false; err = [string]$_.Exception.Message; ms = $sw.ElapsedMilliseconds } } }
+      Send $ctx 200 $d
     }
     elseif ($path -eq '/search') { Send $ctx 200 @{ items = (Search-Symbols ([string]$qs['q'])) } }
     elseif ($path -eq '/stop') { Send $ctx 200 @{ ok = $true }; $listener.Stop(); exit 0 }

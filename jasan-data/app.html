@@ -650,8 +650,8 @@ body.dense-ui main{padding-block:18px 36px}
       <div class="row between wrap"><span>촘촘한 화면 (정보 밀도 높게)</span><label class="inline-check"><input type="checkbox" id="denseChk">사용</label></div>
       <div class="row between wrap"><span>바탕화면 알림</span><button class="btn sm ghost" id="notifyBtn">켜기</button></div>
       <div class="xs muted" id="notifyNote"></div>
-      <div class="row between wrap"><span>실시간 시세 (주식·ETF·코인·지수)</span><button class="btn sm ghost" id="qsBtn">지금 갱신</button></div>
-      <div class="xs muted" id="qsNote"></div>
+      <div class="row between wrap"><span>실시간 시세 (주식·ETF·코인·지수)</span><div class="row"><button class="btn sm ghost" id="qsDiag">연결 진단</button><button class="btn sm ghost" id="qsBtn">지금 갱신</button></div></div>
+      <div class="xs muted" id="qsNote"></div><div class="stack" id="qsDiagOut" style="gap:6px"></div>
       <div class="row between wrap"><span>원/달러 환율</span><div class="row"><span class="wt"><input id="fxInput" type="number" min="100" step="1" style="width:110px" aria-label="환율"></span><button class="btn sm ghost" id="fxNow">지금 갱신</button><button class="btn sm ghost" id="fxAuto">자동값 사용</button></div></div>
       <div class="xs muted" id="fxNote"></div>
       <div class="sec-title">데이터</div>
@@ -712,7 +712,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.32.0";
+const APP_VERSION="3.33.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -2297,7 +2297,10 @@ function logBench(idx){const k=idx["^KS11"],s=idx["^GSPC"];if(!k||!s)return;cons
 function marketOpen(){const n=new Date();const kst=new Date(n.getTime()+(n.getTimezoneOffset()+540)*60000);const d=kst.getDay(),m=kst.getHours()*60+kst.getMinutes();const wk=d>0&&d<6;return (wk&&m>=540&&m<=940)||((d>0&&d<6&&m>=1350)||(d>1&&d<7&&m<=420));}
 function qsAge(){if(!qsAt)return "";const m=Math.round((Date.now()-qsAt)/60000);return m<1?"방금":m<60?m+"분 전":Math.round(m/60)+"시간 전";}
 function renderQsSetting(){if(!$("#qsNote"))return;$("#qsBtn").disabled=!qsUp;$("#qsNote").innerHTML=qsUp?`연결됨 · ${qsAt?"마지막 갱신 "+qsAge():"아직 갱신 전"} · 장중에는 5분마다, 그 외에는 30분마다 자동 갱신해요. 티커를 입력한 종목만 갱신돼요.`:"꺼져 있어요. 새 설치 파일(v3.27 이후)의 Install.bat을 한 번 실행한 뒤 바탕화면 아이콘으로 앱을 켜면 자동으로 연결돼요. (PowerShell로 이 PC 안에서만 동작하는 시세 중계 프로그램이에요.)";}
-$("#qsBtn").onclick=()=>refreshQuotes(true);$$("[data-qs-refresh]").forEach(x=>x.onclick=()=>refreshQuotes(true));
+$("#qsBtn").onclick=()=>refreshQuotes(true);
+$("#qsDiag").onclick=async()=>{if(!(await qsPing())){$("#qsDiagOut").innerHTML='<div class="alert"><span class="dot" style="background:var(--bad)"></span><span><b>중계 프로그램에 연결되지 않아요.</b><br><span class="small ink2">1) 새 설치 파일의 Install.bat을 실행했는지 2) 바탕화면 아이콘(Run.bat)으로 앱을 켰는지 확인하세요. 3) 회사 PC는 보안 정책으로 PowerShell 실행이 막혀 있을 수 있어요.</span></span></div>';return;}
+  $("#qsDiagOut").innerHTML='<div class="xs muted">각 시세 출처를 확인하는 중… (최대 30초)</div>';try{const d=await qsFetch("/diag",40000);const nm={yahoo:"야후 (주식·ETF·지수·환율)",naver:"네이버 (국내주식 대체)",upbit:"업비트 (코인)",stooq:"Stooq (해외주식 대체)"};
+    $("#qsDiagOut").innerHTML=`<div class="xs muted">PowerShell ${esc(d.ps||"")} · ${esc(d.os||"")}</div>`+Object.keys(nm).map(k=>{const x=d[k]||{};return `<div class="alert"><span class="dot" style="background:var(${x.ok?"--good":"--bad"})"></span><span style="flex:1"><b>${nm[k]}</b> ${x.ok?`정상 · ${x.ms}ms`:"실패"}${x.ok?"":`<br><span class="small ink2" style="word-break:break-all">${esc(String(x.err||"").slice(0,180))}</span>`}</span></div>`;}).join("")+'<div class="xs muted">실패한 항목이 있으면 이 화면을 캡처해 알려주세요.</div>';}catch(e){$("#qsDiagOut").innerHTML='<div class="xs muted">진단하지 못했어요: '+esc(e.message||"")+'</div>';}};$$("[data-qs-refresh]").forEach(x=>x.onclick=()=>refreshQuotes(true));
 function liveIdxTiles(){const d=LS.get("jasan-idx",null);if(!d||!d.idx)return "";const old=Date.now()-d.at>36*3600e3;return IDX.map(([sym,nm])=>{const x=d.idx[sym];if(!x)return "";const c=x.prev?x.price/x.prev-1:0;return `<div class="tile"><div class="k">${nm} <span class="pill ${old?"":"dividend"}" style="font-size:10px">${old?"지난 시세":"실시간"}</span></div><div class="v num">${x.price.toLocaleString("ko-KR",{maximumFractionDigits:2})}</div><div class="n ${sgn(c)}">${c>=0?"▲":"▼"} ${pct(c,2)}</div></div>`;}).join("");}
 function dayChange(){let s=0,n=0;items.forEach(h=>{if(isSec(h)&&num(h.prevClose)>0&&h.liveAt&&Date.now()-h.liveAt<36*3600e3){s+=num(h.qty)*(num(h.price)-num(h.prevClose))*fxRate(h.currency);n++;}});return n?s:null;}
 $("#tkFind").onclick=async()=>{const q=($("#f-ticker").value||$("#f-name").value).trim();if(!q){toast("이름이나 티커를 먼저 입력하세요");return;}if(!qsUp&&!(await qsPing())){toast("시세 연결 프로그램이 꺼져 있어요");return;}
