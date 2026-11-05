@@ -712,7 +712,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.31.0";
+const APP_VERSION="3.32.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1945,7 +1945,7 @@ const DIV_DEFAULT={kstock:"y",ostock:"q",ketf:"q",oetf:"q",reit:"h",fund:"y"};
 const DIV_MONTHS={m:[1,2,3,4,5,6,7,8,9,10,11,12],q:{kstock:[4,5,8,11],ostock:[3,6,9,12],oetf:[3,6,9,12],ketf:[1,4,7,10],reit:[3,6,9,12],fund:[3,6,9,12],other:[3,6,9,12]},h:[6,12],y:[4]};
 function incomeCalendar(t){const now=new Date();const mons=Array.from({length:12},(_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()+i,1);return {key:iso(d).slice(0,7),mo:d.getMonth()+1,div:0,int:0,mat:0,list:[]};});
   items.forEach(h=>{if(isDebt(h))return;const v=valKRW(h),T=TYPES[h.type];const free=isTaxFree(h);const net=x=>free?x:x*(1-.154);
-    if(num(h.divYield)>0){const fq=h.divFreq||DIV_DEFAULT[h.type]||"q";if(fq!=="none"){const ms=fq==="m"?DIV_MONTHS.m:fq==="q"?(DIV_MONTHS.q[h.type]||DIV_MONTHS.q.other):DIV_MONTHS[fq];const per=net(v*num(h.divYield)/100)/ms.length;mons.forEach(m=>{if(ms.includes(m.mo)){m.div+=per;m.list.push(`${h.name} 배당 ${short(per)}`);}});}}
+    if(num(h.divYield)>0){const fq=h.divFreq||DIV_DEFAULT[h.type]||"q";if(fq!=="none"){const ms=Array.isArray(h.divMonths)&&h.divMonths.length&&!h.divManual?h.divMonths:fq==="m"?DIV_MONTHS.m:fq==="q"?(DIV_MONTHS.q[h.type]||DIV_MONTHS.q.other):DIV_MONTHS[fq];const per=net(v*num(h.divYield)/100)/ms.length;mons.forEach(m=>{if(ms.includes(m.mo)){m.div+=per;m.list.push(`${h.name} 배당 ${short(per)}`);}});}}
     if(["cash"].includes(T.cls)&&num(h.rate)>0&&h.type!=="lease"){const per=net(v*num(h.rate)/100/12);mons.forEach(m=>{m.int+=per;});}
     const me=maturityEst(h);if(me){const k=h.maturity.slice(0,7);const m=mons.find(x=>x.key===k);if(m){m.mat+=me.amt;m.list.push(`${h.name} 만기 ${short(me.amt)}`);}}});
   return mons;}
@@ -1956,7 +1956,7 @@ function renderCalendar(t){const mons=incomeCalendar(t);const tot=mons.reduce((s
   $("#calOut").innerHTML=`<div class="split"><div class="tile"><div class="k">향후 12개월 세후 배당·이자</div><div class="v num pos">${short(tot)}원</div><div class="n">월평균 ${short(tot/12)}원</div></div><div class="tile"><div class="k">올해 실제 받은 배당·이자</div><div class="v num">${short(actual)}원</div><div class="n">거래 원장 기준 (세후)</div></div><div class="tile"><div class="k">12개월 내 만기 도래</div><div class="v num">${short(mons.reduce((s,m)=>s+m.mat,0))}원</div><div class="n">${mons.filter(m=>m.mat).map(m=>m.mo+"월").join(", ")||"없음"}</div></div></div>
     <div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="월별 예상 배당·이자">${g}</svg></div><div class="row wrap small" style="gap:14px"><span class="row" style="gap:6px"><i style="width:10px;height:10px;border-radius:3px;background:var(--c1)"></i>배당</span><span class="row" style="gap:6px"><i style="width:10px;height:10px;border-radius:3px;background:var(--c2)"></i>예금·파킹 이자</span><span class="row" style="gap:6px"><i style="width:10px;height:10px;border-radius:50%;background:var(--c3)"></i>예적금 만기</span></div>
     <div class="stack" style="gap:4px">${mons.filter(m=>m.list.length).slice(0,6).map(m=>`<div class="row between small"><span class="muted">${m.key}</span><span style="text-align:right">${m.list.slice(0,3).map(esc).join(" · ")}${m.list.length>3?` 외 ${m.list.length-3}건`:""}</span></div>`).join("")}</div>
-    <div class="note">배당 지급 월은 자산 수정 화면의 '배당 주기'로 바꿀 수 있어요. 기본값: 국내주식 연 1회(4월), 해외주식·ETF 분기, 리츠 반기. 적금·청약 이자는 만기에 함께 받는 것으로 계산해요.</div>`;}
+    <div class="note">실시간 시세가 연결되면 지난 1년 실제 배당 지급 월로 자동 맞춰져요. 아니면 자산 수정 화면의 '배당 주기'를 따라요. 기본값: 국내주식 연 1회(4월), 해외주식·ETF 분기, 리츠 반기. 적금·청약 이자는 만기에 함께 받는 것으로 계산해요.</div>`;}
 
 /* ---- retirement planner ---- */
 const RET_KEY="jasan-retire";
@@ -2288,7 +2288,7 @@ async function backfillBench(){if(LS.get("jasan-bench-fill","")===today())return
   const bl=LS.get("jasan-bench-local",[]);const m={};rows.concat(bl).forEach(r=>m[r.d]=r);LS.set("jasan-bench-local",Object.values(m).sort((a,b)=>a.d<b.d?-1:1).slice(-400));LS.set("jasan-bench-fill",today());}catch(e){}}
 async function autoDividends(){if(LS.get("jasan-div-fill","")===today())return;const hs=items.filter(h=>isSec(h)&&symOf(h)&&h.type!=="crypto"&&!h.divManual).slice(0,20);let n=0;
   for(const h of hs){try{const d=await getHist(symOf(h),"1y");const yearAgo=Date.now()/1000-365*86400;const ttm=(d.div||[]).filter(x=>x.t>=yearAgo).reduce((s,x)=>s+num(x.amt),0);const last=d.c[d.c.length-1];
-    if(last>0){h.hi52=Math.max(...d.c);h.lo52=Math.min(...d.c);if(ttm>0||h.divAuto){h.divYield=Math.round(ttm/last*10000)/100;h.divAuto=today();}n++;}}catch(e){}}
+    if(last>0){h.hi52=Math.max(...d.c);h.lo52=Math.min(...d.c);if(ttm>0||h.divAuto){h.divYield=Math.round(ttm/last*10000)/100;h.divAuto=today();}const dm=Array.from(new Set((d.div||[]).filter(x=>x.t>=yearAgo).map(x=>new Date(x.t*1000).getMonth()+1))).sort((a,b)=>a-b);if(dm.length)h.divMonths=dm;n++;}}catch(e){}}
   if(n){persist();LS.set("jasan-div-fill",today());if(curPage!=="home")renderAll();}}
 function priceAlertNotify(){if(!LS.get("jasan-notify",false)||typeof Notification==="undefined"||Notification.permission!=="granted")return;const sent=LS.get("jasan-pa-sent",{});const d=today();const msgs=[];
   items.filter(h=>isSec(h)&&h.liveAt&&(num(h.tgtPrice)||num(h.stopPrice))).forEach(h=>{const p=num(h.price);const k=h.id+":"+d;if(sent[k])return;if(num(h.tgtPrice)&&p>=num(h.tgtPrice)){msgs.push(`${h.name} 목표가 도달 (${p.toLocaleString("ko-KR")})`);sent[k]=1;}else if(num(h.stopPrice)&&p<=num(h.stopPrice)){msgs.push(`${h.name} 손절가 이탈 (${p.toLocaleString("ko-KR")})`);sent[k]=1;}});
