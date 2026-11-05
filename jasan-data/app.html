@@ -694,7 +694,7 @@ body.dense-ui main{padding-block:18px 36px}
   <label class="field">갱신·만기·해지 기한<input id="fx-renew" type="date"></label>
   <label class="field" style="grid-column:1/-1">메모<input id="fx-memo" placeholder="예: 보장 내용, 해지 방법"></label></div>
   <div class="actions"><button type="button" class="btn danger" id="fxDel" hidden>삭제</button><span class="grow"></span><button type="button" class="btn ghost" data-close>취소</button><button type="submit" class="btn">저장</button></div></form></dialog>
-<dialog id="detDlg" class="wide"><div class="sheet"><h2 class="row" id="detTitle" style="gap:12px"></h2><div class="split" id="detTiles"></div><div id="detNote"></div><div id="detActs"></div><div class="sec-title">거래 내역</div><div id="detTx"></div>
+<dialog id="detDlg" class="wide"><div class="sheet"><h2 class="row" id="detTitle" style="gap:12px"></h2><div class="split" id="detTiles"></div><div id="detNote"></div><div id="detActs"></div><div class="chart stack" id="detChart" style="gap:8px"></div><div class="sec-title">거래 내역</div><div id="detTx"></div>
   <div class="actions"><button class="btn ghost" data-close>닫기</button><span class="grow"></span><button class="btn ghost" id="detTx2">거래 기록</button><button class="btn" id="detEdit">자산 수정</button></div></div></dialog>
 <dialog id="cmapDlg" class="wide"><div class="sheet"><h2>거래내역 가져오기</h2><div class="xs muted" id="cmapInfo"></div>
   <div class="note">은행·증권사 앱에서 내려받은 거래내역 CSV의 열을 맞춰 주세요. 머리글을 보고 자동으로 골라 두었어요. 엑셀(xlsx) 파일은 'CSV로 저장' 후 불러오세요.</div>
@@ -709,7 +709,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.27.0";
+const APP_VERSION="3.28.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1376,7 +1376,7 @@ $("#holdForm").addEventListener("submit",e=>{e.preventDefault();
   if(q&&!(qty>0)){toast("보유 수량을 입력하세요");return;}if(!q&&!(num(g("f-value"))>0)&&!(num(g("f-principal"))>0)){toast(T.mode==="debt"?"대출 잔액을 입력하세요":"금액을 입력하세요");return;}
   const prev=items.find(x=>x.id===editingId);const cur=g("f-currency");
   const h={...(prev||{}),id:editingId||uid(),kind:"holding",type,name:g("f-name").trim()||T.label,tags:g("f-tags").split(/[,#\s]+/).map(x=>x.trim()).filter(Boolean).join(", "),note:g("f-note").trim(),account:g("f-account").trim(),owner:g("f-owner")||members()[0],currency:cur,ticker:g("f-ticker").trim(),
-    qty:q?qty:0,avg:q?(avg||price):0,price:q?(price||avg):0,divYield:num(g("f-div")),divFreq:g("f-divfreq"),tgtPrice:num(g("f-tgt"))||0,stopPrice:num(g("f-stop"))||0,
+    qty:q?qty:0,avg:q?(avg||price):0,price:q?(price||avg):0,divYield:num(g("f-div")),divManual:(prev&&num(prev.divYield)!==num(g("f-div")))?true:(prev?.divManual||false),divFreq:g("f-divfreq"),tgtPrice:num(g("f-tgt"))||0,stopPrice:num(g("f-stop"))||0,
     value:q?0:num(g("f-value")),principal:q?0:(g("f-principal")===""?num(g("f-value")):num(g("f-principal"))),
     avgFx:cur!=="KRW"?(num(g("f-avgfx"))||fxRate(cur)):0,monthly:num(g("f-monthly")),rate:g("f-rate")===""?(["invest","pension"].includes(T.grp)?assum(type).r:T.rate):num(g("f-rate")),
     maturity:g("f-maturity"),start:g("f-start")||today(),createdAt:prev?.createdAt||Date.now(),priceAt:q&&(!prev||num(prev.price)!==(price||avg))?today():(prev?.priceAt||today()),
@@ -1411,6 +1411,9 @@ function openDetail(id){const h=items.find(x=>x.id===id);if(!h)return;detailId=i
       txs.push({id:uid(),hid:h.id,hname:h.name,kind:"interest",date:h.maturity,amount:Math.round(gross),fee:0,tax:Math.round(gross)-netInt,qty:0,price:0,memo:"만기 이자",cur:h.currency,applied:false});const w={id:uid(),hid:h.id,hname:h.name,kind:"withdraw",date:today(),amount:num(h.value),fee:0,tax:0,qty:0,price:0,memo:"만기 해지",cur:h.currency};applyTx(w,h);w.applied=true;txs.push(w);
       if(ck){const dpt={id:uid(),hid:ck.id,hname:ck.name,kind:"deposit",date:today(),amount:total,fee:0,tax:0,qty:0,price:0,memo:`${h.name} 만기 해지금`,cur:ck.currency,applied:true};applyTx(dpt,ck);txs.push(dpt);}
       items=items.filter(x=>x.id!==h.id);persist();renderAll();toast("해지 처리했어요","되돌리기",undo);}});
+  $("#detChart").innerHTML="";if(isSec(h)&&symOf(h)&&qsUp){$("#detChart").innerHTML='<div class="xs muted">1년 시세 불러오는 중…</div>';getHist(symOf(h),"1y").then(d=>{if(detailId!==id)return;const c=d.c,lbl=d.t.map(t=>iso(new Date(t*1000)));const hi=Math.max(...c),lo=Math.min(...c),last=c[c.length-1];
+      const avgP=num(h.avg);const st=Math.max(1,Math.floor(c.length/5));const xl=[];for(let i=0;i<c.length;i+=st)xl.push([i,lbl[i].slice(2,7).replace("-",".")]);
+      $("#detChart").innerHTML=`<div class="row wrap" style="gap:6px"><span class="chip">1년 ${pct(last/c[0]-1,1)}</span><span class="chip">52주 최고 ${hi.toLocaleString("ko-KR",{maximumFractionDigits:2})}</span><span class="chip">최저 ${lo.toLocaleString("ko-KR",{maximumFractionDigits:2})}</span><span class="chip ${last<hi*.8?"warn":""}">고점 대비 ${pct(last/hi-1,1)}</span>${(d.div||[]).length?`<span class="chip accent">최근 1년 배당 ${d.div.length}회</span>`:""}</div>`+lineChart([{pts:c,c:"--c2",area:true}],{h:170,label:"1년 시세",extra:avgP?[avgP]:[],goal:avgP||0,xlabels:xl,fmt:v=>v>=1e4?axisFmt(v):Math.round(v*100)/100,tt:{labels:lbl,series:[{name:"종가",c:"--c2",pts:c}]}}).replace(/목표 /,"평단 ");}).catch(()=>{if(detailId===id)$("#detChart").innerHTML='<div class="xs muted">시세 기록을 찾지 못했어요. 티커를 확인하세요.</div>';});}
   const own=txs.filter(x=>x.hid===id).sort((a,b)=>a.date<b.date?1:-1);
   $("#detTx").innerHTML=own.length?`<div class="tablewrap"><table class="dense" style="min-width:420px"><tbody>${own.slice(0,30).map(x=>`<tr style="cursor:default"><td class="num">${x.date}</td><td><span class="pill ${x.kind}">${KIND[x.kind]||x.kind}</span></td><td class="r num">${num(x.qty)?num(x.qty).toLocaleString("ko-KR"):""}</td><td class="r num">${won(x.amount)}</td><td class="r num ${x.realized!=null?sgn(rk(x)):""}">${x.realized!=null?(rk(x)>=0?"+":"")+short(rk(x)):""}</td><td class="small muted">${esc(x.memo||"")}</td><td>${x.kind!=="open"?`<button class="link small" data-detedit="${esc(x.id)}">수정</button>`:""}</td></tr>`).join("")}</tbody></table></div>${own.length>30?`<div class="xs muted">최근 30건만 표시 · 전체는 원장에서</div>`:""}`:'<div class="note">거래 기록이 없어요.</div>';
   $$("[data-detedit]").forEach(b=>b.onclick=()=>{$("#detDlg").close();openTx(null,null,null,null,b.dataset.detedit);});
@@ -2271,8 +2274,17 @@ async function refreshQuotes(manual){if(qsBusy)return;if(qsUp===null||manual)awa
       if(qc&&qc!==h.currency&&["KRW","USD","JPY","EUR"].includes(qc)){const k=fxRate(qc)/fxRate(h.currency);p*=k;pv*=k;}
       if(qc==="GBp"||qc==="GBX"){p/=100;pv/=100;}h.price=Math.round(p*10000)/10000;h.prevClose=pv||null;h.priceAt=today();h.liveAt=Date.now();h.liveSrc=q.src;n++;});
     const idx={};IDX.forEach(([sym,nm])=>{const q=res[sym];if(q&&num(q.price)>0)idx[sym]={nm,price:num(q.price),prev:num(q.prev),time:q.time};});if(Object.keys(idx).length){LS.set("jasan-idx",{at:Date.now(),idx});logBench(idx);}
-    qsAt=Date.now();LS.set("jasan-qs-at",qsAt);if(n)persist();renderAll();if(manual)toast(`시세 ${n}개 갱신${miss.length?` · 못 찾음 ${miss.length}개(티커 확인)`:""}`);}
+    qsAt=Date.now();LS.set("jasan-qs-at",qsAt);if(n)persist();renderAll();setTimeout(()=>{backfillBench();autoDividends();},500);if(manual)toast(`시세 ${n}개 갱신${miss.length?` · 못 찾음 ${miss.length}개(티커 확인)`:""}`);}
   catch(e){if(manual)toast("시세를 가져오지 못했어요: "+(e.message||"오류"));}finally{qsBusy=false;}}
+const histMem={};
+async function getHist(sym,range){const k=sym+":"+(range||"1y");if(histMem[k]&&Date.now()-histMem[k].at<3600e3)return histMem[k].v;const v=await qsFetch(`/history?s=${encodeURIComponent(sym)}&range=${range||"1y"}`,25000);if(v&&Array.isArray(v.c)){histMem[k]={at:Date.now(),v};return v;}throw new Error("no data");}
+async function backfillBench(){if(LS.get("jasan-bench-fill","")===today())return;try{const [k,sp]=await Promise.all([getHist("^KS11","1y"),getHist("^GSPC","1y")]);const dmap=a=>{const m={};a.t.forEach((t,i)=>{m[iso(new Date(t*1000))]=a.c[i];});return m;};const km=dmap(k),sm=dmap(sp);
+  const rows=Object.keys(km).filter(d=>sm[d]!=null||Object.keys(sm).some(x=>x<d)).map(d=>{let sv=sm[d];if(sv==null){const prev=Object.keys(sm).filter(x=>x<=d).sort().pop();sv=sm[prev];}return {d,kospi:km[d],sp500:sv};}).filter(r=>r.sp500);
+  const bl=LS.get("jasan-bench-local",[]);const m={};rows.concat(bl).forEach(r=>m[r.d]=r);LS.set("jasan-bench-local",Object.values(m).sort((a,b)=>a.d<b.d?-1:1).slice(-400));LS.set("jasan-bench-fill",today());}catch(e){}}
+async function autoDividends(){if(LS.get("jasan-div-fill","")===today())return;const hs=items.filter(h=>isSec(h)&&symOf(h)&&h.type!=="crypto"&&!h.divManual).slice(0,20);let n=0;
+  for(const h of hs){try{const d=await getHist(symOf(h),"1y");const yearAgo=Date.now()/1000-365*86400;const ttm=(d.div||[]).filter(x=>x.t>=yearAgo).reduce((s,x)=>s+num(x.amt),0);const last=d.c[d.c.length-1];
+    if(last>0){h.hi52=Math.max(...d.c);h.lo52=Math.min(...d.c);if(ttm>0||h.divAuto){h.divYield=Math.round(ttm/last*10000)/100;h.divAuto=today();}n++;}}catch(e){}}
+  if(n){persist();LS.set("jasan-div-fill",today());if(curPage!=="home")renderAll();}}
 function logBench(idx){const k=idx["^KS11"],s=idx["^GSPC"];if(!k||!s)return;const bl=LS.get("jasan-bench-local",[]);const d=today();const row={d,kospi:Math.round(k.price*100)/100,sp500:Math.round(s.price*100)/100};const out=bl.filter(x=>x.d!==d).concat(row).slice(-400);LS.set("jasan-bench-local",out);}
 function marketOpen(){const n=new Date();const kst=new Date(n.getTime()+(n.getTimezoneOffset()+540)*60000);const d=kst.getDay(),m=kst.getHours()*60+kst.getMinutes();const wk=d>0&&d<6;return (wk&&m>=540&&m<=940)||((d>0&&d<6&&m>=1350)||(d>1&&d<7&&m<=420));}
 function qsAge(){if(!qsAt)return "";const m=Math.round((Date.now()-qsAt)/60000);return m<1?"방금":m<60?m+"분 전":Math.round(m/60)+"시간 전";}

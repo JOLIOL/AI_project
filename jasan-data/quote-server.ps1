@@ -70,6 +70,36 @@ function Get-Quote([string]$s) {
   if ($q) { $cache[$key] = @{ t = (Get-Date); v = $q } }
   return $q
 }
+function Hist-Yahoo([string]$sym, [string]$range) {
+  $u = "$Yahoo/v8/finance/chart/" + [Uri]::EscapeDataString($sym) + "?range=$range&interval=1d&events=div"
+  $j = Get-Json $u
+  $res = $j.chart.result[0]; if (-not $res -or -not $res.timestamp) { return $null }
+  $ts = @($res.timestamp); $cl = @($res.indicators.quote[0].close)
+  $t = @(); $c = @()
+  for ($i = 0; $i -lt $ts.Count; $i++) { if ($null -ne $cl[$i]) { $t += [int64]$ts[$i]; $c += [math]::Round([double]$cl[$i], 4) } }
+  $divs = @()
+  if ($res.events -and $res.events.dividends) { foreach ($p in $res.events.dividends.PSObject.Properties) { $divs += @{ t = [int64]$p.Value.date; amt = [double]$p.Value.amount } } }
+  return @{ t = $t; c = $c; div = $divs; currency = [string]$res.meta.currency; src = 'Yahoo'; symbol = $sym }
+}
+function Hist-Upbit([string]$mkt) {
+  $j = Get-Json "$Upbit/v1/candles/days?market=$mkt&count=200"
+  $rows = @($j); [array]::Reverse($rows)
+  $t = @(); $c = @()
+  foreach ($r in $rows) { $t += [int64]([double]$r.timestamp / 1000); $c += [double]$r.trade_price }
+  return @{ t = $t; c = $c; div = @(); currency = 'KRW'; src = 'Upbit'; symbol = $mkt }
+}
+function Get-Hist([string]$s, [string]$range) {
+  $key = 'H:' + $s.ToUpper() + ':' + $range
+  if ($cache.ContainsKey($key) -and ((Get-Date) - $cache[$key].t).TotalMinutes -lt 60) { return $cache[$key].v }
+  $h = $null; $u = $s.ToUpper()
+  try {
+    if ($u -match '^(KRW|BTC|USDT)-[A-Z0-9]+$') { $h = Hist-Upbit $u }
+    elseif ($u -match '^\d{6}$') { try { $h = Hist-Yahoo "$u.KS" $range } catch { $h = $null }; if (-not $h) { $h = Hist-Yahoo "$u.KQ" $range } }
+    else { $h = Hist-Yahoo $u $range }
+  } catch { $h = $null }
+  if ($h) { $cache[$key] = @{ t = (Get-Date); v = $h } }
+  return $h
+}
 function Search-Symbols([string]$q) {
   $out = @()
   if ($q -match '[가-힣]') {
@@ -122,6 +152,11 @@ while ($listener.IsListening) {
         if ($q) { $out[$s] = $q } else { $out[$s] = @{ error = 'not_found' } }
       }
       Send $ctx 200 $out
+    }
+    elseif ($path -eq '/history') {
+      $range = [string]$qs['range']; if ($range -notmatch '^(1mo|3mo|6mo|1y|2y|5y)$') { $range = '1y' }
+      $h = Get-Hist ([string]$qs['s']) $range
+      if ($h) { Send $ctx 200 $h } else { Send $ctx 404 @{ error = 'not_found' } }
     }
     elseif ($path -eq '/search') { Send $ctx 200 @{ items = (Search-Symbols ([string]$qs['q'])) } }
     elseif ($path -eq '/stop') { Send $ctx 200 @{ ok = $true }; $listener.Stop(); exit 0 }
