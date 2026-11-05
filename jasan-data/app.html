@@ -4,7 +4,7 @@
 <!-- JASAN_APP_OK -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net data:; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; connect-src https://raw.githubusercontent.com https://api.coinbase.com https://open.er-api.com https://api.frankfurter.app">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net data:; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; connect-src http://localhost:47801 https://raw.githubusercontent.com https://api.coinbase.com https://open.er-api.com https://api.frankfurter.app">
 <title>자산 키움 노트</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
@@ -346,7 +346,7 @@ body.dense-ui main{padding-block:18px 36px}
       <!-- ASSETS -->
       <section class="page" id="p-assets" hidden>
         <div class="page-head"><div><h1>보유 자산</h1><div class="sub">행을 누르면 상세 · 거래 기록은 <span class="kbd">T</span> · 검색은 <span class="kbd">Ctrl K</span></div></div>
-          <div class="row wrap"><button class="btn ghost" id="priceBtn">시세·잔액 일괄 업데이트</button><button class="btn ghost" data-add-tx>거래 기록</button><button class="btn" data-add>＋ 자산 추가</button></div></div>
+          <div class="row wrap"><button class="btn ghost" data-qs-refresh>실시간 시세 갱신</button><button class="btn ghost" id="priceBtn">시세·잔액 일괄 업데이트</button><button class="btn ghost" data-add-tx>거래 기록</button><button class="btn" data-add>＋ 자산 추가</button></div></div>
         <div class="kpis" id="aSummary"></div>
         <div class="row wrap" id="aQuick" style="gap:6px"></div>
         <div class="card">
@@ -549,8 +549,9 @@ body.dense-ui main{padding-block:18px 36px}
       <label class="field">계좌·금융사<input id="f-account" list="acctList" placeholder="예: ISA, 연금저축, 토스뱅크"></label>
       <label class="field">통화<select id="f-currency"><option value="KRW">원화 KRW</option><option value="USD">달러 USD</option><option value="JPY">엔화 JPY</option><option value="EUR">유로 EUR</option></select></label>
       <label class="field" id="f-avgfx-wrap" hidden><span id="f-avgfx-label">평균 매입 환율</span><input id="f-avgfx" type="number" min="0.01" step="0.01"></label>
-      <label class="field" id="f-ticker-wrap">티커·종목코드<input id="f-ticker" placeholder="선택"></label>
+      <label class="field" id="f-ticker-wrap"><span class="row between">티커·종목코드 <button type="button" class="link small" id="tkFind">찾기</button></span><input id="f-ticker" placeholder="예: 005930, VOO, BTC"></label>
     </div>
+    <div class="list" id="tkList"></div>
     <label class="inline-check" id="f-useqty-wrap" hidden><input type="checkbox" id="f-useqty">수량·단가로 관리</label>
     <div id="sec-qty">
       <div class="sec-title" id="sec-qty-title">수량으로 관리</div>
@@ -646,6 +647,8 @@ body.dense-ui main{padding-block:18px 36px}
       <div class="row between wrap"><span>촘촘한 화면 (정보 밀도 높게)</span><label class="inline-check"><input type="checkbox" id="denseChk">사용</label></div>
       <div class="row between wrap"><span>바탕화면 알림</span><button class="btn sm ghost" id="notifyBtn">켜기</button></div>
       <div class="xs muted" id="notifyNote"></div>
+      <div class="row between wrap"><span>실시간 시세 (주식·ETF·코인·지수)</span><button class="btn sm ghost" id="qsBtn">지금 갱신</button></div>
+      <div class="xs muted" id="qsNote"></div>
       <div class="row between wrap"><span>원/달러 환율</span><div class="row"><span class="wt"><input id="fxInput" type="number" min="100" step="1" style="width:110px" aria-label="환율"></span><button class="btn sm ghost" id="fxNow">지금 갱신</button><button class="btn sm ghost" id="fxAuto">자동값 사용</button></div></div>
       <div class="xs muted" id="fxNote"></div>
       <div class="sec-title">데이터</div>
@@ -706,7 +709,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.26.0";
+const APP_VERSION="3.27.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1337,7 +1340,7 @@ $$("[data-close]").forEach(b=>b.addEventListener("click",()=>b.closest("dialog")
 $$("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
 function confirmBox(title,body,okText){return new Promise(res=>{$("#cfTitle").textContent=title;$("#cfBody").textContent=body;$("#cfOk").textContent=okText||"확인";
   const dlg=$("#confirmDlg");let done=false;const ok=()=>{done=true;dlg.close();res(true)};$("#cfOk").onclick=ok;dlg.addEventListener("close",()=>{if(!done)res(false)},{once:true});dlg.showModal();});}
-$$("[data-open-settings]").forEach(b=>b.onclick=()=>{$("#fxInput").value=Math.round(fxRate("USD"));renderSnaps();renderNotifySetting();renderPinSetting();renderBkSetting();$("#setDlg").showModal();});
+$$("[data-open-settings]").forEach(b=>b.onclick=()=>{$("#fxInput").value=Math.round(fxRate("USD"));renderSnaps();renderNotifySetting();renderPinSetting();renderBkSetting();renderQsSetting();$("#setDlg").showModal();});
 $$("[data-open-help]").forEach(b=>b.onclick=()=>$("#helpDlg").showModal());
 
 /* ================= holding CRUD ================= */
@@ -1478,7 +1481,7 @@ async function refreshData(){const c=LS.get(K.market,null);if(validData(c)&&c.up
   applyRates();recordHistory();renderAll();}
 const VIEW_LABEL={rateTrend:{up:"금리 상승기",flat:"금리 보합",down:"금리 하락기"},equity:{high:"주가 높은 수준",neutral:"주가 중립",low:"주가 낮은 수준"}};
 function mview(){const v=DATA.marketView||{};return {rateTrend:["up","flat","down"].includes(v.rateTrend)?v.rateTrend:"flat",equity:["high","neutral","low"].includes(v.equity)?v.equity:"neutral",summary:v.summary||"",tilts:Array.isArray(v.tilts)?v.tilts:[]};}
-const marketTiles=()=>(DATA.market||[]).map(m=>`<div class="tile"><div class="k">${esc(m.k)}</div><div class="v num">${esc(m.v)}</div><div class="n">${esc(m.n||"")}</div></div>`).join("")+
+const marketTiles=()=>liveIdxTiles()+(DATA.market||[]).map(m=>`<div class="tile"><div class="k">${esc(m.k)}</div><div class="v num">${esc(m.v)}</div><div class="n">${esc(m.n||"")}</div></div>`).join("")+
   (()=>{const c=LS.get(K.fxLive,null),d=c&&c.prev?num(c.rate)-num(c.prev):0;return `<div class="tile"><div class="k">원/달러 환율</div><div class="v num">${won(fxRate("USD"))}원${d?` <span class="xs ${d>0?"neg":"pos"}">${d>0?"▲":"▼"}${Math.abs(d).toFixed(1)}</span>`:""}</div><div class="n">${num(LS.get(K.fx,0))>0?"직접 입력값":c?`${esc(c.src)} · ${fxAge()}`:esc(DATA.fx?.note||DATA.fx?.asOf||"")}</div><div class="n">100엔 ${won(fxRate("JPY")*100)}원 · 1유로 ${won(fxRate("EUR"))}원</div></div>`})();
 
 /* ================= salary ================= */
@@ -1589,16 +1592,17 @@ function advice(t){const out=[];const share=k=>t.value?(t.byCls[k]||0)/t.value:0
 function alerts(t){const out=[];items.filter(x=>x.maturity).forEach(x=>{const d=Math.ceil(days(today(),x.maturity));if(d>=0&&d<=60)out.push(["info",`'${esc(x.name)}' 만기 D-${d}. ${mview().rateTrend==="up"?"짧은 만기로 재예치를 고려하세요.":"재예치 금리를 비교해 보세요."}`]);});
   const pd=num(PROFILE.payday);if(pd){const dd=pd-new Date().getDate();if(dd>=0&&dd<=3)out.push(["good",dd===0?"오늘은 월급날이에요. 체크리스트대로 배분해 보세요.":`월급날까지 ${dd}일 남았어요.`]);}
   const tg=targets(t),band=num(UI.band)||5;if(t.value)Object.keys(CLASSES).forEach(k=>{const d=((t.byCls[k]||0)/t.value*100)-num(tg[k]);if(Math.abs(d)>band)out.push(["warn",`${CLASSES[k].label} 비중이 목표보다 ${d>0?"+":""}${d.toFixed(1)}%p 벗어났어요. 리밸런싱을 검토하세요.`]);});
-  const stale=items.filter(isSec).filter(h=>!h.priceAt||days(h.priceAt,today())>7);if(stale.length&&items.some(isSec))out.push(["info",`현재가를 입력한 지 오래된 종목이 ${stale.length}개 있어요. 자산 화면의 '현재가 일괄 입력'을 이용하세요.`]);
+  const stale=items.filter(isSec).filter(h=>!(h.liveAt&&Date.now()-h.liveAt<4*864e5)&&(!h.priceAt||days(h.priceAt,today())>7));if(stale.length&&items.some(isSec))out.push(["info",`현재가를 입력한 지 오래된 종목이 ${stale.length}개 있어요. 자산 화면의 '현재가 일괄 입력'을 이용하세요.`]);
   if(items.length&&new Date().getDate()>=Math.min(28,num(PROFILE.payday)||25)-20&&!flows.some(f=>f.m===prevMonth()))out.push(["info",`${prevMonth().slice(5)}월 결산을 아직 안 했어요. 월급 화면에서 실제 수입·지출을 기록하면 저축률이 쌓여요.`]);
   if(new Date().getMonth()>=10){const ye=yearEnd(t);const g=ye.acts.reduce((s,a)=>s+a.gain,0);if(g>0)out.push(["warn",`연말정산 D-${ye.dleft} · 지금 실행하면 약 ${short(g)}원을 아낄 수 있어요. 세금 화면에서 확인하세요.`]);}
   fixeds.filter(f=>f.renew).forEach(f=>{const d=Math.ceil(days(today(),f.renew));if(d>=0&&d<=14)out.push(["warn",`'${esc(f.name)}' 갱신·해지 기한 D-${d}`]);});
   items.filter(h=>isSec(h)&&(num(h.tgtPrice)||num(h.stopPrice))).forEach(h=>{const p=num(h.price);if(num(h.tgtPrice)&&p>=num(h.tgtPrice))out.push(["good",`'${esc(h.name)}' 현재가 ${p.toLocaleString("ko-KR")}이 목표가 ${num(h.tgtPrice).toLocaleString("ko-KR")}에 도달했어요. 매도·비중 조절을 검토하세요.`]);if(num(h.stopPrice)&&p<=num(h.stopPrice))out.push(["bad",`'${esc(h.name)}' 현재가 ${p.toLocaleString("ko-KR")}이 손절가 ${num(h.stopPrice).toLocaleString("ko-KR")} 아래예요. 계획대로 대응하세요.`]);});
+  if(qsUp===false&&items.some(isSec))out.push(["info","실시간 주가 연동이 꺼져 있어요. 새 설치 파일(Install.bat)을 한 번 실행하면 주식·ETF·코인 가격이 자동으로 바뀌어요."]);
   const lb=LS.get(K.lastBackup,0);if(bkState==="needperm")out.push(["warn","자동 백업 폴더 접근 허용이 필요해요. 설정 > 지금 백업을 눌러 주세요."]);else if(items.length>=3&&(!lb||Date.now()-lb>30*864e5))out.push(["warn",`${lb?"마지막 백업 후 30일이 지났어요":"아직 백업한 적이 없어요"}. 설정에서 백업 파일을 내보내 두세요. 데이터는 이 PC에만 저장돼요.`]);
   (DATA.notices||[]).forEach(n=>out.push(["info",esc(n)]));advice(t).filter(a=>a[0]==="bad").forEach(a=>out.push(a));return out;}
 const dotColor={good:"var(--good)",warn:"var(--warn)",bad:"var(--bad)",info:"var(--info)"};
 const alertHtml=a=>`<div class="alert"><span class="dot" style="background:${dotColor[a[0]]}"></span><span>${a[1]}</span></div>`;
-const ALERT_ROUTES=[[/목표가|손절가|만기 D-|만기가 지난/,"detail","보기"],[/백업/,"settings","백업"],[/연말정산|연금저축|IRP|ISA|세금|금융소득/,"#tax","세금"],[/결산/,"#salary","결산"],[/현재가|시세/,"price","업데이트"],[/갱신|해지 기한|구독|보험료/,"#salary","확인"],[/비중|리밸런싱|부채비율|대출|상환|금리 7%/,"#analytics","분석"],[/월급날|비상금|생활비/,"#salary","월급"],[/모집|청년/,"#guide","가이드"]];
+const ALERT_ROUTES=[[/주가 연동/,"settings","설정"],[/목표가|손절가|만기 D-|만기가 지난/,"detail","보기"],[/백업/,"settings","백업"],[/연말정산|연금저축|IRP|ISA|세금|금융소득/,"#tax","세금"],[/결산/,"#salary","결산"],[/현재가|시세/,"price","업데이트"],[/갱신|해지 기한|구독|보험료/,"#salary","확인"],[/비중|리밸런싱|부채비율|대출|상환|금리 7%/,"#analytics","분석"],[/월급날|비상금|생활비/,"#salary","월급"],[/모집|청년/,"#guide","가이드"]];
 const PRIO={bad:0,warn:1,good:2,info:3};
 function todoHtml(a,i){const txt=a[1].replace(/<[^>]+>/g,"");const r=ALERT_ROUTES.find(x=>x[0].test(txt));return `<div class="alert"><span class="dot" style="background:${dotColor[a[0]]}"></span><span style="flex:1">${a[1]}</span>${r?`<button class="btn sm ghost" data-todo="${i}">${r[2]}</button>`:""}</div>`;}
 function runTodo(a){const txt=a[1].replace(/<[^>]+>/g,"");const r=ALERT_ROUTES.find(x=>x[0].test(txt));if(!r)return;const act=r[1];
@@ -1639,7 +1643,7 @@ function renderHome(t){const h=new Date().getHours();$("#hello").textContent=h<1
   const chg=mAgo&&mAgo.d<today()?curNet-(mAgo.n??mAgo.v):null;const contrib=mAgo?netInvested()-(mAgo.f??mAgo.p):0;
   $("#homeSub").innerHTML=`${esc(DATA.asOfLabel||"")} 시장 정보 · ${marketState}${chg!=null?` · <b class="${sgn(chg)}">${mAgo.d.slice(5).replace("-","/")} 이후 순자산 ${chg>=0?"+":""}${short(chg)}원</b> (저축 ${short(contrib)} · 운용 ${chg-contrib>=0?"+":""}${short(chg-contrib)})`:""}`;renderProfileStrip();renderOnboard(t);
   const xr=portfolioXirr(t),tr=taxReport(t);const prev=hist.filter(x=>x.d<today()).slice(-1)[0];const dd=prev?t.value-prev.v-((netInvested()-(prev.f??prev.p)))||0:null;
-  $("#hKpis").innerHTML=kpi(t.debt?"순자산":"총자산",short(t.debt?t.net:t.value)+"원",t.debt?`자산 ${short(t.value)} − 부채 ${short(t.debt)}`:prev?`직전 기록 대비 ${dd>=0?"+":""}${short(dd)}원 (입출금 제외)`:"오늘부터 추이를 기록해요")+
+  const dc=dayChange();$("#hKpis").innerHTML=kpi(t.debt?"순자산":"총자산",short(t.debt?t.net:t.value)+"원",dc!=null?`오늘 시세 변동 <b class="${sgn(dc)}">${dc>=0?"+":""}${short(dc)}원</b> · ${qsAge()}`:t.debt?`자산 ${short(t.value)} − 부채 ${short(t.debt)}`:prev?`직전 기록 대비 ${dd>=0?"+":""}${short(dd)}원 (입출금 제외)`:"오늘부터 추이를 기록해요")+
     kpi("평가손익",(t.gain>=0?"+":"")+short(t.gain)+"원",`${t.cost?pct(t.gain/t.cost):""}${(t.byCls.realty||0)?` · 투자자산 ${short(investable(t))}`:""}`,sgn(t.gain))+
     kpi("연환산 수익률 (XIRR)",xr&&xr.r!=null&&xr.span>=30?pct(xr.r):"–",xr&&xr.span<30?"기간 30일 이상부터 표시":"입출금 시점을 반영한 실제 수익률",xr&&xr.r!=null?sgn(xr.r):"","거래 원장의 모든 입출금 시점과 금액을 반영한 내부수익률(IRR)")+
     kpi(`${yr()}년 배당·이자`,short(tr.div+tr.intr)+"원",`실현손익 ${tr.realized>=0?"+":""}${short(tr.realized)}원`);
@@ -1703,7 +1707,7 @@ function renderAssets(t){$$("#aView button").forEach(b=>b.setAttribute("aria-pre
     const body=rows.map(r=>{const h=r.h;let head="";if(UI.grouped&&r.grp!==lastG){lastG=r.grp;const g=gOrder[r.grp];const grs=rows.filter(x=>x.grp===r.grp);const sv=grs.reduce((s,x)=>s+x.krw,0),sc=grs.reduce((s,x)=>s+x.cost,0);
         head=`<tr class="grp" style="cursor:default"><td class="sticky-col" colspan="3"><b>${GROUPS[g]}</b> <span class="xs muted">${grs.length}개</span></td><td></td><td></td><td></td><td class="r num muted">${g==="debt"?"":won(sc)}</td><td class="r num"><b class="${g==="debt"?"neg":""}">${g==="debt"?"−":""}${won(sv)}</b></td><td class="r num ${g==="debt"?"":sgn(sv-sc)}">${g==="debt"?"":(sv-sc>=0?"+":"")+won(sv-sc)}</td><td></td><td></td><td class="r num">${t.value?pctp(sv/t.value):""}</td><td></td></tr>`;}
       return head+`<tr data-edit="${esc(h.id)}"><td class="sticky-col"><b>${esc(h.name)}</b>${h.ticker?` <span class="xs muted">${esc(h.ticker)}</span>`:""}${h.currency!=="KRW"?` <span class="pill">${h.currency}</span>`:""}${h.autopay?' <span class="pill dividend">자동</span>':""}${members().length>1?` <span class="pill">${esc(ownerOf(h))}</span>`:""}${tagsOf(h).map(t=>` <span class="xs" style="color:var(--accent)">#${esc(t)}</span>`).join("")}${r.mat?`<div class="xs muted">만기 예상 ${short(r.mat.amt)} (세후)</div>`:""}</td><td>${esc(h.account||"–")}</td><td><span class="badge-dot" style="background:var(${TYPES[h.type]?.c})"></span>${TYPES[h.type]?.label||""}</td>
-        <td class="r num">${isSec(h)?fmtN(h.qty,6):"–"}</td><td class="r num">${isSec(h)?fmtN(h.avg,2):"–"}</td><td class="r num">${isSec(h)?fmtN(h.price,2):"–"}</td>
+        <td class="r num">${isSec(h)?fmtN(h.qty,6):"–"}</td><td class="r num">${isSec(h)?fmtN(h.avg,2):"–"}</td><td class="r num">${isSec(h)?fmtN(h.price,2)+(num(h.prevClose)>0&&h.liveAt?`<div class="xs ${sgn(h.price-h.prevClose)}">${pct(h.price/h.prevClose-1,2)}</div>`:""):"–"}</td>
         <td class="r num">${won(r.cost)}</td><td class="r num"><b class="${r.debt?"neg":""}">${r.debt?"−":""}${won(r.krw)}</b></td><td class="r num ${r.debt?"":sgn(r.gain)}">${r.debt?"–":(r.gain>=0?"+":"")+won(r.gain)}</td><td class="r num ${r.debt?"":sgn(r.ret)}">${r.debt?"–":pct(r.ret,2)}</td>
         <td class="r num ${r.fxg?sgn(r.fxg):"muted"}">${r.fxg?(r.fxg>=0?"+":"")+short(r.fxg):"–"}</td><td class="r num">${pctp(r.w)}</td><td class="r num">${num(h.rate).toFixed(1)}</td></tr>`}).join("");
     $("#aBody").innerHTML=`<div class="tablewrap"><table class="dense"><thead><tr>${th("name","종목·상품")}${th("acct","계좌")}${th("type","유형")}<th class="r">수량</th><th class="r">평단</th><th class="r">현재가</th>${th("cost","원금(원)",1)}${th("krw","평가액(원)",1)}${th("gain","손익(원)",1)}${th("ret","수익률",1)}${th("fxg","환차손익",1)}${th("w","비중",1)}${th("rate","금리·기대%",1)}</tr></thead><tbody>${body}</tbody>
@@ -1745,7 +1749,7 @@ function renderAnalytics(t){const ps=perfStats(),mr=modelRisk(t),xr=portfolioXir
     kpi("TWR 누적",ps?pct(ps.tot):"–",ps?`${Math.round(ps.span)}일 · ${ps.n}개 구간`:"기록 2일 이상 필요",ps?sgn(ps.tot):"","입출금 영향을 제거한 운용 성과(시간가중수익률)")+
     kpi("최대 낙폭 (MDD)",ps?pct(ps.mdd):"–","기록된 고점 대비 최대 하락",ps&&ps.mdd<-.1?"neg":"")+
     kpi("샤프 지수",ps&&ps.sharpe!=null?ps.sharpe.toFixed(2):"–",ps&&ps.sharpe!=null?"(연수익−무위험)÷변동성":"30일 이상 기록 필요","","1 이상이면 위험 대비 성과가 좋은 편");
-  const bench=Array.isArray(DATA.bench)?DATA.bench.filter(x=>x&&x.d).sort((a,b)=>a.d<b.d?-1:1):[];
+  const bench=(()=>{const m={};(Array.isArray(DATA.bench)?DATA.bench:[]).forEach(x=>{if(x&&x.d)m[x.d]=x;});LS.get("jasan-bench-local",[]).forEach(x=>{if(x&&x.d)m[x.d]=x;});return Object.values(m).sort((a,b)=>a.d<b.d?-1:1);})();
   const bret=(key,dd)=>{if(bench.length<2||dd==null)return null;const end=bench[bench.length-1];let st;if(dd==="ytd")st=[...bench].reverse().find(x=>x.d<yr()+"-01-01");else{const f=new Date(end.d);f.setDate(f.getDate()-dd);st=[...bench].reverse().find(x=>x.d<=iso(f));}return st&&num(st[key])&&num(end[key])?num(end[key])/num(st[key])-1:null;};
   const cell=v=>`<td class="r num ${v==null?"muted":sgn(v)}">${v==null?"–":pct(v,2)}</td>`;
   const prow=(l,v,dd)=>`<tr><td>${l}</td>${cell(v)}${bench.length>=2?cell(bret("kospi",dd))+cell(bret("sp500",dd)):""}</tr>`;
@@ -2254,6 +2258,36 @@ function renderHealth(){const is=healthIssues();const used=storageInfo();
   $$("[data-hfix]").forEach(b=>b.onclick=()=>{const x=is[+b.dataset.hfix];if(x.go){$("#healthDlg").close();x.go();return;}snapUndo();x.f();persist();renderAll();renderHealth();toast("정리했어요","되돌리기",undo);});}
 $$("[data-open-health]").forEach(b=>b.onclick=()=>{$("#setDlg").open&&$("#setDlg").close();renderHealth();$("#healthDlg").showModal();});
 
+/* ================= live quotes (local relay) ================= */
+const QS="http://localhost:47801";let qsUp=null,qsBusy=false,qsAt=LS.get("jasan-qs-at",0);
+const IDX=[["^KS11","코스피"],["^KQ11","코스닥"],["^GSPC","S&P500"],["^IXIC","나스닥"]];
+async function qsFetch(path,ms){const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),ms||12000);try{const r=await fetch(QS+path,{signal:ctl.signal,cache:"no-store"});clearTimeout(tm);if(!r.ok)throw new Error("HTTP "+r.status);return await r.json();}finally{clearTimeout(tm);}}
+async function qsPing(){const was=qsUp;try{const j=await qsFetch("/ping",2500);qsUp=!!(j&&j.ok);}catch(e){qsUp=false;}renderQsSetting();if(was!==qsUp&&curPage==="home")renderHome(totals());return qsUp;}
+function symOf(h){const t=String(h.ticker||"").trim();if(!t)return null;if(h.type==="crypto"){const c=t.toUpperCase().replace(/^KRW-/,"");return "KRW-"+c;}if(/^\d{6}$/.test(t))return t;if(/^\d{6}\.(KS|KQ)$/i.test(t))return t.toUpperCase();return t.toUpperCase();}
+async function refreshQuotes(manual){if(qsBusy)return;if(qsUp===null||manual)await qsPing();if(!qsUp){if(manual)toast("시세 연결 프로그램이 꺼져 있어요. 설정에서 안내를 확인하세요.");return;}
+  const secs=items.filter(h=>isSec(h)&&symOf(h));const syms=Array.from(new Set(secs.map(symOf).concat(IDX.map(x=>x[0]))));qsBusy=true;
+  try{const res={};for(let i=0;i<syms.length;i+=15){Object.assign(res,await qsFetch("/quote?s="+encodeURIComponent(syms.slice(i,i+15).join(",")),20000));}
+    let n=0,miss=[];secs.forEach(h=>{const q=res[symOf(h)];if(!q||q.error||!(num(q.price)>0)){miss.push(h.name);return;}let p=num(q.price),pv=num(q.prev);const qc=(q.currency||"").toUpperCase();
+      if(qc&&qc!==h.currency&&["KRW","USD","JPY","EUR"].includes(qc)){const k=fxRate(qc)/fxRate(h.currency);p*=k;pv*=k;}
+      if(qc==="GBp"||qc==="GBX"){p/=100;pv/=100;}h.price=Math.round(p*10000)/10000;h.prevClose=pv||null;h.priceAt=today();h.liveAt=Date.now();h.liveSrc=q.src;n++;});
+    const idx={};IDX.forEach(([sym,nm])=>{const q=res[sym];if(q&&num(q.price)>0)idx[sym]={nm,price:num(q.price),prev:num(q.prev),time:q.time};});if(Object.keys(idx).length){LS.set("jasan-idx",{at:Date.now(),idx});logBench(idx);}
+    qsAt=Date.now();LS.set("jasan-qs-at",qsAt);if(n)persist();renderAll();if(manual)toast(`시세 ${n}개 갱신${miss.length?` · 못 찾음 ${miss.length}개(티커 확인)`:""}`);}
+  catch(e){if(manual)toast("시세를 가져오지 못했어요: "+(e.message||"오류"));}finally{qsBusy=false;}}
+function logBench(idx){const k=idx["^KS11"],s=idx["^GSPC"];if(!k||!s)return;const bl=LS.get("jasan-bench-local",[]);const d=today();const row={d,kospi:Math.round(k.price*100)/100,sp500:Math.round(s.price*100)/100};const out=bl.filter(x=>x.d!==d).concat(row).slice(-400);LS.set("jasan-bench-local",out);}
+function marketOpen(){const n=new Date();const kst=new Date(n.getTime()+(n.getTimezoneOffset()+540)*60000);const d=kst.getDay(),m=kst.getHours()*60+kst.getMinutes();const wk=d>0&&d<6;return (wk&&m>=540&&m<=940)||((d>0&&d<6&&m>=1350)||(d>1&&d<7&&m<=420));}
+function qsAge(){if(!qsAt)return "";const m=Math.round((Date.now()-qsAt)/60000);return m<1?"방금":m<60?m+"분 전":Math.round(m/60)+"시간 전";}
+function renderQsSetting(){if(!$("#qsNote"))return;$("#qsBtn").disabled=!qsUp;$("#qsNote").innerHTML=qsUp?`연결됨 · ${qsAt?"마지막 갱신 "+qsAge():"아직 갱신 전"} · 장중에는 5분마다, 그 외에는 30분마다 자동 갱신해요. 티커를 입력한 종목만 갱신돼요.`:"꺼져 있어요. 새 설치 파일(v3.27 이후)의 Install.bat을 한 번 실행한 뒤 바탕화면 아이콘으로 앱을 켜면 자동으로 연결돼요. (PowerShell로 이 PC 안에서만 동작하는 시세 중계 프로그램이에요.)";}
+$("#qsBtn").onclick=()=>refreshQuotes(true);$$("[data-qs-refresh]").forEach(x=>x.onclick=()=>refreshQuotes(true));
+function liveIdxTiles(){const d=LS.get("jasan-idx",null);if(!d||!d.idx)return "";const old=Date.now()-d.at>36*3600e3;return IDX.map(([sym,nm])=>{const x=d.idx[sym];if(!x)return "";const c=x.prev?x.price/x.prev-1:0;return `<div class="tile"><div class="k">${nm} <span class="pill ${old?"":"dividend"}" style="font-size:10px">${old?"지난 시세":"실시간"}</span></div><div class="v num">${x.price.toLocaleString("ko-KR",{maximumFractionDigits:2})}</div><div class="n ${sgn(c)}">${c>=0?"▲":"▼"} ${pct(c,2)}</div></div>`;}).join("");}
+function dayChange(){let s=0,n=0;items.forEach(h=>{if(isSec(h)&&num(h.prevClose)>0&&h.liveAt&&Date.now()-h.liveAt<36*3600e3){s+=num(h.qty)*(num(h.price)-num(h.prevClose))*fxRate(h.currency);n++;}});return n?s:null;}
+$("#tkFind").onclick=async()=>{const q=($("#f-ticker").value||$("#f-name").value).trim();if(!q){toast("이름이나 티커를 먼저 입력하세요");return;}if(!qsUp&&!(await qsPing())){toast("시세 연결 프로그램이 꺼져 있어요");return;}
+  $("#tkList").innerHTML='<div class="xs muted">검색 중…</div>';try{const j=await qsFetch("/search?q="+encodeURIComponent(q),12000);const its=(j.items||[]).slice(0,8);
+    $("#tkList").innerHTML=its.length?its.map((x,i)=>`<button type="button" class="item cmd" data-tk="${i}"><span class="pill">${esc(x.exch||x.type||"")}</span><span class="main name">${esc(x.name||x.symbol)}</span><span class="num small muted">${esc(x.symbol)}</span></button>`).join(""):'<div class="xs muted">찾지 못했어요. 종목코드(6자리)나 영문 티커로 입력해 보세요.</div>';
+    $$("[data-tk]").forEach(b=>b.onclick=async()=>{const x=its[+b.dataset.tk];$("#f-ticker").value=x.symbol.replace(/\.(KS|KQ)$/i,"");if(!$("#f-name").value.trim())$("#f-name").value=x.name||x.symbol;const kr=/^\d{6}/.test(x.symbol);
+      const ty=$("#f-type").value;if(kr&&!["kstock","ketf","reit"].includes(ty)){$("#f-type").value=/ETF|KODEX|TIGER|ACE|SOL|RISE|KBSTAR|HANARO|ARIRANG|PLUS/i.test(x.name||"")?"ketf":"kstock";}else if(!kr&&x.type!=="CRYPTOCURRENCY"&&!["ostock","oetf"].includes(ty)){$("#f-type").value=x.type==="ETF"?"oetf":"ostock";}
+      syncForm(!editingId);$("#tkList").innerHTML="";try{const r=await qsFetch("/quote?s="+encodeURIComponent(symOf({type:$("#f-type").value,ticker:$("#f-ticker").value})),12000);const qq=Object.values(r)[0];if(qq&&qq.price){if(qq.currency&&["USD","JPY","EUR","KRW"].includes(qq.currency)){$("#f-currency").value=qq.currency;syncCur();}$("#f-price").value=qq.price;toast(`현재가 ${Number(qq.price).toLocaleString("ko-KR")} ${qq.currency||""}`);}}catch(e){}});}catch(e){$("#tkList").innerHTML='<div class="xs muted">검색하지 못했어요.</div>';}};
+(async()=>{await qsPing();if(qsUp){setTimeout(()=>refreshQuotes(false),1200);}setInterval(async()=>{if(document.hidden)return;const gap=marketOpen()?5*60e3:30*60e3;if(Date.now()-qsAt<gap-5000)return;if(qsUp||await qsPing())refreshQuotes(false);},60e3);})();
+
 /* ================= in-app guide ================= */
 const GUIDE_SECTIONS=[
  ["처음 시작하기",["왼쪽 아래 '내 정보 · 연봉'에서 연봉과 생활비를 입력하세요. 실수령액, 4대보험, 세금, 월급 배분이 모두 이 값으로 계산돼요.","자산 화면의 [+ 현금·입출금] [+ 투자] 같은 버튼으로 월급통장부터 하나씩 추가하세요. 유형에 맞는 입력 칸만 나와요.","설정 > 예시로 채우기를 누르면 화면 구성을 미리 볼 수 있어요. 실제 사용 전에 '모든 데이터 지우기'로 지우세요."]],
@@ -2306,7 +2340,7 @@ $("#cmapOk").onclick=()=>{const {out}=csvBuild();if(!out.length){toast("가져�
   persist();$("#cmapDlg").close();renderAll();toast(`거래 ${out.length}건을 가져왔어요`,"되돌리기",undo);};
 
 /* ================= command palette ================= */
-function cmdItems(){const acts=[["자산 추가 (N)",()=>openHolding()],["거래 기록 (T)",()=>openTx()],["시세·잔액 일괄 업데이트",()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),60);}],["연봉 · 내 정보 수정",()=>openProfile()],["월간 결산 기록",()=>{location.hash="#salary";setTimeout(()=>$("#fl-income").focus(),80);}],["목표 추가",()=>openGoal()],["고정지출 추가",()=>openFix()],["내 집 마련 플래너",()=>{location.hash="#grow";setTimeout(()=>$("#hbOut").scrollIntoView({behavior:"smooth"}),120);}],["노후 준비 계산기",()=>{location.hash="#grow";setTimeout(()=>$("#retOut").scrollIntoView({behavior:"smooth"}),120);}],["백업 내보내기",()=>$("#expBtn").click()],["현재 화면 PDF 저장",()=>$("[data-print]").click()],["환율 지금 갱신",()=>refreshFx(true)],["설정 열기",()=>$("[data-open-settings]").click()],["사용 설명서",()=>$("#guideDlg").showModal()],["월간 리포트",()=>openReport()],["데이터 점검",()=>{renderHealth();$("#healthDlg").showModal();}],["지금 화면 잠그기",()=>lockNow()],["바탕화면 알림 설정",()=>$("[data-open-settings]").click()]];
+function cmdItems(){const acts=[["자산 추가 (N)",()=>openHolding()],["거래 기록 (T)",()=>openTx()],["시세·잔액 일괄 업데이트",()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),60);}],["연봉 · 내 정보 수정",()=>openProfile()],["월간 결산 기록",()=>{location.hash="#salary";setTimeout(()=>$("#fl-income").focus(),80);}],["목표 추가",()=>openGoal()],["고정지출 추가",()=>openFix()],["내 집 마련 플래너",()=>{location.hash="#grow";setTimeout(()=>$("#hbOut").scrollIntoView({behavior:"smooth"}),120);}],["노후 준비 계산기",()=>{location.hash="#grow";setTimeout(()=>$("#retOut").scrollIntoView({behavior:"smooth"}),120);}],["백업 내보내기",()=>$("#expBtn").click()],["현재 화면 PDF 저장",()=>$("[data-print]").click()],["환율 지금 갱신",()=>refreshFx(true)],["설정 열기",()=>$("[data-open-settings]").click()],["사용 설명서",()=>$("#guideDlg").showModal()],["실시간 시세 지금 갱신",()=>refreshQuotes(true)],["월간 리포트",()=>openReport()],["데이터 점검",()=>{renderHealth();$("#healthDlg").showModal();}],["지금 화면 잠그기",()=>lockNow()],["바탕화면 알림 설정",()=>$("[data-open-settings]").click()]];
   return [...PAGES.map(([k,l])=>({g:"화면",l:l+" 화면으로",f:()=>location.hash="#"+k})),...acts.map(([l,f])=>({g:"동작",l,f})),...items.map(h=>({g:TYPES[h.type].label,l:h.name+(h.account?" · "+h.account:""),f:()=>openDetail(h.id),v:valKRW(h)}))];}
 let cmdSel=0,cmdList=[];
 function renderCmd(){const q=$("#cmdQ").value.trim().toLowerCase();cmdList=cmdItems().filter(x=>!q||(x.l+" "+x.g).toLowerCase().includes(q)).slice(0,12);cmdSel=Math.min(cmdSel,Math.max(0,cmdList.length-1));
