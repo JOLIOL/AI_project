@@ -336,6 +336,7 @@ body.dense-ui main{padding-block:18px 36px}
           </div>
         </div>
         <div class="grid mk" id="hMarket"></div>
+        <div id="hMovers"></div>
         <div class="grid g-2">
           <div class="card"><div class="card-head"><h3>이번 달 월급 배분</h3><a class="link small" href="#salary">자세히</a></div><div id="hSalary"></div></div>
           <div class="card"><div class="card-head"><h3>할 일 · 알림</h3><span class="chip" id="hAlertCount"></span></div><div class="stack" id="hAlerts"></div></div>
@@ -712,7 +713,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.33.0";
+const APP_VERSION="3.34.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1667,6 +1668,7 @@ function renderHome(t){const h=new Date().getHours();$("#hello").textContent=h<1
      <div class="bar">${pl.rows.map(r=>`<span style="width:${r.amt/pl.surplus*100}%;background:var(${TYPES[r.type].c})" title="${esc(r.label)}"></span>`).join("")}</div>
      <div class="stack" style="gap:6px">${pl.rows.map(r=>`<div class="row between small"><span class="row" style="gap:8px"><i style="width:8px;height:8px;border-radius:2px;background:var(${TYPES[r.type].c})"></i>${esc(r.label)}</span><span class="num ${c.done[r.label]?"muted":""}">${won(r.amt)}원${c.done[r.label]?" ✓":""}</span></div>`).join("")}</div>
      <div class="row wrap" style="gap:6px"><span class="chip info">${VIEW_LABEL.rateTrend[mv.rateTrend]}</span><span class="chip ${mv.equity==="high"?"warn":""}">${VIEW_LABEL.equity[mv.equity]}</span></div>`;}
+  $("#hMovers").innerHTML=moversHtml();
   const al=alerts(t).sort((a,b)=>PRIO[a[0]]-PRIO[b[0]]);$("#hAlertCount").textContent=al.length+"건";const show=UI.allAlerts?al:al.slice(0,6);$("#hAlerts").innerHTML=al.length?show.map(todoHtml).join("")+(al.length>6?`<button class="link small" id="moreAlerts">${UI.allAlerts?"접기":`${al.length-6}건 더 보기`}</button>`:""):`<div class="note">할 일이 없어요. 잘 관리하고 있어요.</div>`;
   $$("[data-todo]").forEach(b=>b.onclick=()=>runTodo(show[+b.dataset.todo]));if($("#moreAlerts"))$("#moreAlerts").onclick=()=>{UI.allAlerts=!UI.allAlerts;saveUI();renderHome(totals());};
   $("#hGoals").innerHTML=goalsHtml(t,true);bindGoals();}
@@ -2253,6 +2255,7 @@ function healthIssues(){const out=[];const ids=new Set(items.map(h=>h.id));
   const orphOpen=txs.filter(t=>t.kind==="open"&&!ids.has(t.hid));if(orphOpen.length)out.push({k:"oopen",t:`삭제된 자산의 보유 시작 기록 ${orphOpen.length}건`,d:"투입 원금 계산(XIRR)에 남아 수익률을 왜곡해요.",fix:"정리",f:()=>{txs=txs.filter(t=>!(t.kind==="open"&&!ids.has(t.hid)));}});
   const seen={},dups=[];txs.forEach(t=>{if(t.kind==="open")return;const k=[t.hid,t.date,t.kind,Math.round(num(t.amount)),num(t.qty)].join("|");if(seen[k])dups.push(t);else seen[k]=1;});if(dups.length)out.push({k:"dup",t:`똑같은 거래로 보이는 기록 ${dups.length}건`,d:"같은 날·같은 자산·같은 금액의 거래예요. 실제 중복이면 정리하세요(보유 수량은 바뀌지 않아요).",fix:"중복 정리",f:()=>{const del=new Set(dups.map(x=>x.id));txs=txs.filter(t=>!del.has(t.id));}});
   const stale=items.filter(h=>isSec(h)&&(!h.priceAt||days(h.priceAt,today())>14));if(stale.length)out.push({k:"stale",t:`현재가가 2주 넘게 그대로인 종목 ${stale.length}개`,d:stale.slice(0,4).map(h=>esc(h.name)).join(", "),fix:"일괄 업데이트",f:null,go:()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),80);}});
+  const jumps=items.filter(h=>h.priceJump);if(jumps.length)out.push({k:"jump",t:`시세가 갑자기 크게 바뀐 종목 ${jumps.length}개`,d:jumps.map(h=>`${esc(h.name)} ${num(h.priceJump.from).toLocaleString("ko-KR")} → ${num(h.priceJump.to).toLocaleString("ko-KR")}`).join(", ")+" · 액면분할·병합이면 보유 수량과 평단을 같은 비율로 고치고, 아니라면 티커가 맞는지 확인하세요.",fix:"확인함",f:()=>{jumps.forEach(h=>delete h.priceJump);}});
   const zero=items.filter(h=>!isDebt(h)&&valKRW(h)<=0);if(zero.length)out.push({k:"zero",t:`평가액이 0원인 자산 ${zero.length}개`,d:zero.slice(0,4).map(h=>esc(h.name)).join(", ")+" · 해지했다면 삭제하세요.",fix:null});
   const past=items.filter(h=>h.maturity&&!isDebt(h)&&h.maturity<today());if(past.length)out.push({k:"mat",t:`만기가 지난 상품 ${past.length}개`,d:past.slice(0,4).map(h=>esc(h.name)).join(", ")+" · 재예치했다면 만기일을 고치고, 해지했다면 삭제하세요.",fix:null});
   const noAcct=items.filter(h=>!h.account&&!isDebt(h)&&!["lease","realestate"].includes(h.type));if(noAcct.length>=3)out.push({k:"acct",t:`계좌가 비어 있는 자산 ${noAcct.length}개`,d:"계좌(ISA·연금저축 등)를 넣으면 절세 계좌 분석과 세금 계산이 정확해져요.",fix:null});
@@ -2277,9 +2280,9 @@ async function refreshQuotes(manual){if(qsBusy)return;if(qsUp===null||manual)awa
     if(res["GC=F"]&&num(res["GC=F"].price)>0){const g=res["GC=F"],k=fxRate("USD")/31.1035;res["GC=F"]={...g,price:num(g.price)*k,prev:num(g.prev)*k,currency:"KRW"};}
     let n=0,miss=[];secs.forEach(h=>{const q=res[symOf(h)];if(!q||q.error||!(num(q.price)>0)){miss.push(h.name);return;}let p=num(q.price),pv=num(q.prev);const qc=(q.currency||"").toUpperCase();
       if(qc&&qc!==h.currency&&["KRW","USD","JPY","EUR"].includes(qc)){const k=fxRate(qc)/fxRate(h.currency);p*=k;pv*=k;}
-      if(qc==="GBp"||qc==="GBX"){p/=100;pv/=100;}h.price=Math.round(p*10000)/10000;h.prevClose=pv||null;h.priceAt=today();h.liveAt=Date.now();h.liveSrc=q.src;n++;});
+      if(qc==="GBp"||qc==="GBX"){p/=100;pv/=100;}if(num(h.price)>0&&Math.abs(Math.log(p/num(h.price)))>Math.log(1.8))h.priceJump={from:num(h.price),to:p,d:today()};else if(h.priceJump&&h.priceJump.d!==today())delete h.priceJump;h.price=Math.round(p*10000)/10000;h.prevClose=pv||null;h.priceAt=today();h.liveAt=Date.now();h.liveSrc=q.src;n++;});
     const idx={};IDX.forEach(([sym,nm])=>{const q=res[sym];if(q&&num(q.price)>0)idx[sym]={nm,price:num(q.price),prev:num(q.prev),time:q.time};});if(Object.keys(idx).length){LS.set("jasan-idx",{at:Date.now(),idx});logBench(idx);}
-    qsAt=Date.now();LS.set("jasan-qs-at",qsAt);if(n)persist();priceAlertNotify();refreshWatch();renderAll();setTimeout(()=>{backfillBench();autoDividends();},500);if(manual)toast(`시세 ${n}개 갱신${miss.length?` · 못 찾음 ${miss.length}개(티커 확인)`:""}`);}
+    qsAt=Date.now();LS.set("jasan-qs-at",qsAt);if(n)persist();priceAlertNotify();closeBriefing();refreshWatch();renderAll();setTimeout(()=>{backfillBench();autoDividends();},500);if(manual)toast(`시세 ${n}개 갱신${miss.length?` · 못 찾음 ${miss.length}개(티커 확인)`:""}`);}
   catch(e){if(manual)toast("시세를 가져오지 못했어요: "+(e.message||"오류"));}finally{qsBusy=false;}}
 const histMem={};
 async function getHist(sym,range){const k=sym+":"+(range||"1y");if(histMem[k]&&Date.now()-histMem[k].at<3600e3)return histMem[k].v;const v=await qsFetch(`/history?s=${encodeURIComponent(sym)}&range=${range||"1y"}`,25000);if(v&&Array.isArray(v.c)){histMem[k]={at:Date.now(),v};return v;}throw new Error("no data");}
@@ -2293,6 +2296,14 @@ async function autoDividends(){if(LS.get("jasan-div-fill","")===today())return;c
 function priceAlertNotify(){if(!LS.get("jasan-notify",false)||typeof Notification==="undefined"||Notification.permission!=="granted")return;const sent=LS.get("jasan-pa-sent",{});const d=today();const msgs=[];
   items.filter(h=>isSec(h)&&h.liveAt&&(num(h.tgtPrice)||num(h.stopPrice))).forEach(h=>{const p=num(h.price);const k=h.id+":"+d;if(sent[k])return;if(num(h.tgtPrice)&&p>=num(h.tgtPrice)){msgs.push(`${h.name} 목표가 도달 (${p.toLocaleString("ko-KR")})`);sent[k]=1;}else if(num(h.stopPrice)&&p<=num(h.stopPrice)){msgs.push(`${h.name} 손절가 이탈 (${p.toLocaleString("ko-KR")})`);sent[k]=1;}});
   if(msgs.length){try{new Notification("자산 키움 노트 · 가격 알림",{body:msgs.join("\n")});}catch(e){}const keep={};Object.keys(sent).filter(x=>x.endsWith(d)).forEach(x=>keep[x]=1);LS.set("jasan-pa-sent",keep);}}
+function moversHtml(){const live=items.filter(h=>isSec(h)&&num(h.prevClose)>0&&h.liveAt&&Date.now()-h.liveAt<36*3600e3).map(h=>({h,c:num(h.price)/num(h.prevClose)-1,amt:num(h.qty)*(num(h.price)-num(h.prevClose))*fxRate(h.currency)}));if(!live.length)return "";
+  const up=[...live].sort((a,b)=>b.c-a.c).slice(0,3),dn=[...live].sort((a,b)=>a.c-b.c).slice(0,3).filter(x=>x.c<0);const d=LS.get("jasan-idx",null);const k=d&&d.idx["^KS11"],sp=d&&d.idx["^GSPC"];
+  const row=x=>`<div class="row between small"><span>${esc(x.h.name)}</span><span class="num ${sgn(x.c)}">${pct(x.c,2)} <span class="muted">(${x.amt>=0?"+":""}${short(x.amt)}원)</span></span></div>`;
+  return `<div class="card"><div class="card-head"><h3>오늘의 시장</h3><span class="xs muted">${qsAge()} 기준</span></div><div class="row wrap" style="gap:6px">${k?`<span class="chip">코스피 <b class="${sgn(k.price-k.prev)}">${pct(k.price/k.prev-1,2)}</b></span>`:""}${sp?`<span class="chip">S&amp;P500 <b class="${sgn(sp.price-sp.prev)}">${pct(sp.price/sp.prev-1,2)}</b></span>`:""}<span class="chip">내 종목 합계 <b class="${sgn(dayChange()||0)}">${(dayChange()||0)>=0?"+":""}${short(dayChange()||0)}원</b></span></div>
+   <div class="grid g-2" style="gap:14px"><div class="stack" style="gap:6px"><div class="sec-title">많이 오른 종목</div>${up.filter(x=>x.c>0).map(row).join("")||'<div class="xs muted">없음</div>'}</div><div class="stack" style="gap:6px"><div class="sec-title">많이 내린 종목</div>${dn.map(row).join("")||'<div class="xs muted">없음</div>'}</div></div></div>`;}
+function closeBriefing(){if(!LS.get("jasan-notify",false)||typeof Notification==="undefined"||Notification.permission!=="granted")return;const n=new Date();const kst=new Date(n.getTime()+(n.getTimezoneOffset()+540)*60000);const wd=kst.getDay();const mins=kst.getHours()*60+kst.getMinutes();
+  if(wd===0||wd===6||mins<940)return;const key=iso(kst);if(LS.get("jasan-brief","")===key)return;const dc=dayChange();if(dc==null)return;const d=LS.get("jasan-idx",null);const k=d&&d.idx["^KS11"];
+  try{new Notification("오늘의 자산 브리핑",{body:`내 종목 ${dc>=0?"+":""}${short(dc)}원${k?` · 코스피 ${pct(k.price/k.prev-1,2)}`:""}\n순자산 ${short(totals().net)}원`});LS.set("jasan-brief",key);}catch(e){}}
 function logBench(idx){const k=idx["^KS11"],s=idx["^GSPC"];if(!k||!s)return;const bl=LS.get("jasan-bench-local",[]);const d=today();const row={d,kospi:Math.round(k.price*100)/100,sp500:Math.round(s.price*100)/100};const out=bl.filter(x=>x.d!==d).concat(row).slice(-400);LS.set("jasan-bench-local",out);}
 function marketOpen(){const n=new Date();const kst=new Date(n.getTime()+(n.getTimezoneOffset()+540)*60000);const d=kst.getDay(),m=kst.getHours()*60+kst.getMinutes();const wk=d>0&&d<6;return (wk&&m>=540&&m<=940)||((d>0&&d<6&&m>=1350)||(d>1&&d<7&&m<=420));}
 function qsAge(){if(!qsAt)return "";const m=Math.round((Date.now()-qsAt)/60000);return m<1?"방금":m<60?m+"분 전":Math.round(m/60)+"시간 전";}
