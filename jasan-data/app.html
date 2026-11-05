@@ -713,7 +713,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.34.0";
+const APP_VERSION="3.35.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -2256,6 +2256,7 @@ function healthIssues(){const out=[];const ids=new Set(items.map(h=>h.id));
   const seen={},dups=[];txs.forEach(t=>{if(t.kind==="open")return;const k=[t.hid,t.date,t.kind,Math.round(num(t.amount)),num(t.qty)].join("|");if(seen[k])dups.push(t);else seen[k]=1;});if(dups.length)out.push({k:"dup",t:`똑같은 거래로 보이는 기록 ${dups.length}건`,d:"같은 날·같은 자산·같은 금액의 거래예요. 실제 중복이면 정리하세요(보유 수량은 바뀌지 않아요).",fix:"중복 정리",f:()=>{const del=new Set(dups.map(x=>x.id));txs=txs.filter(t=>!del.has(t.id));}});
   const stale=items.filter(h=>isSec(h)&&(!h.priceAt||days(h.priceAt,today())>14));if(stale.length)out.push({k:"stale",t:`현재가가 2주 넘게 그대로인 종목 ${stale.length}개`,d:stale.slice(0,4).map(h=>esc(h.name)).join(", "),fix:"일괄 업데이트",f:null,go:()=>{location.hash="#assets";setTimeout(()=>$("#priceBtn").click(),80);}});
   const jumps=items.filter(h=>h.priceJump);if(jumps.length)out.push({k:"jump",t:`시세가 갑자기 크게 바뀐 종목 ${jumps.length}개`,d:jumps.map(h=>`${esc(h.name)} ${num(h.priceJump.from).toLocaleString("ko-KR")} → ${num(h.priceJump.to).toLocaleString("ko-KR")}`).join(", ")+" · 액면분할·병합이면 보유 수량과 평단을 같은 비율로 고치고, 아니라면 티커가 맞는지 확인하세요.",fix:"확인함",f:()=>{jumps.forEach(h=>delete h.priceJump);}});
+  jumps.forEach(h=>{const r=num(h.priceJump.from)/num(h.priceJump.to);const rr=r>=1?Math.round(r):1/Math.round(1/r);if(!(rr>0)||Math.abs(rr-1)<1e-9)return;out.push({k:"split",t:`${esc(h.name)} ${rr>=1?`1:${rr} 액면분할`:`${Math.round(1/rr)}:1 병합`}로 반영`,d:`보유 ${num(h.qty)}주 → ${Math.round(num(h.qty)*rr*1e6)/1e6}주, 평단 ${num(h.avg).toLocaleString("ko-KR")} → ${(Math.round(num(h.avg)/rr*100)/100).toLocaleString("ko-KR")}. 평가액은 그대로예요.`,fix:"분할 반영",f:()=>{h.qty=Math.round(num(h.qty)*rr*1e6)/1e6;h.avg=Math.round(num(h.avg)/rr*1e4)/1e4;delete h.priceJump;}});});
   const zero=items.filter(h=>!isDebt(h)&&valKRW(h)<=0);if(zero.length)out.push({k:"zero",t:`평가액이 0원인 자산 ${zero.length}개`,d:zero.slice(0,4).map(h=>esc(h.name)).join(", ")+" · 해지했다면 삭제하세요.",fix:null});
   const past=items.filter(h=>h.maturity&&!isDebt(h)&&h.maturity<today());if(past.length)out.push({k:"mat",t:`만기가 지난 상품 ${past.length}개`,d:past.slice(0,4).map(h=>esc(h.name)).join(", ")+" · 재예치했다면 만기일을 고치고, 해지했다면 삭제하세요.",fix:null});
   const noAcct=items.filter(h=>!h.account&&!isDebt(h)&&!["lease","realestate"].includes(h.type));if(noAcct.length>=3)out.push({k:"acct",t:`계좌가 비어 있는 자산 ${noAcct.length}개`,d:"계좌(ISA·연금저축 등)를 넣으면 절세 계좌 분석과 세금 계산이 정확해져요.",fix:null});
