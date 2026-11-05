@@ -11,7 +11,8 @@ $YahooSearch = 'https://query2.finance.yahoo.com'
 $Naver = 'https://m.stock.naver.com'
 $NaverAc = 'https://ac.stock.naver.com'
 $Upbit = 'https://api.upbit.com'
-if ($env:JASAN_UPSTREAM) { $Yahoo = $env:JASAN_UPSTREAM; $YahooSearch = $env:JASAN_UPSTREAM; $Naver = $env:JASAN_UPSTREAM; $NaverAc = $env:JASAN_UPSTREAM; $Upbit = $env:JASAN_UPSTREAM }
+$Stooq = 'https://stooq.com'
+if ($env:JASAN_UPSTREAM) { $Yahoo = $env:JASAN_UPSTREAM; $YahooSearch = $env:JASAN_UPSTREAM; $Naver = $env:JASAN_UPSTREAM; $Stooq = $env:JASAN_UPSTREAM; $NaverAc = $env:JASAN_UPSTREAM; $Upbit = $env:JASAN_UPSTREAM }
 
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$Port/")
@@ -54,6 +55,20 @@ function Quote-Upbit([string]$mkt) {
   $price = To-Num $t.trade_price; $prev = To-Num $t.prev_closing_price
   return @{ price = $price; prev = $prev; currency = 'KRW'; time = [int64]([double]$t.trade_timestamp / 1000); name = $mkt; src = 'Upbit'; symbol = $mkt }
 }
+function Quote-Stooq([string]$sym) {
+  $r = Invoke-WebRequest -Uri ("$Stooq/q/l/?s=" + $sym.ToLower() + '.us&f=sd2t2ohlc&h&e=csv') -UserAgent $UA -UseBasicParsing -TimeoutSec 8
+  $lines = ([Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray())) -split "`n"
+  if ($lines.Count -lt 2) { return $null }
+  $f = $lines[1].Trim() -split ','
+  $price = To-Num $f[6]; if (-not $price) { return $null }
+  return @{ price = $price; prev = $null; currency = 'USD'; time = [int64]([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()); name = $sym; src = 'Stooq'; symbol = $sym }
+}
+function Quote-NaverIndex([string]$code) {
+  $j = Get-Json "$Naver/api/index/$code/basic"
+  $price = To-Num $j.closePrice; if (-not $price) { return $null }
+  $prev = $null; $ratio = To-Num ([string]$j.fluctuationsRatio); if ($null -ne $ratio) { $prev = [math]::Round($price / (1 + $ratio / 100), 2) }
+  return @{ price = $price; prev = $prev; currency = 'KRW'; time = [int64]([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()); name = $code; src = 'Naver'; symbol = $code }
+}
 function Get-Quote([string]$s) {
   $key = $s.ToUpper()
   if ($cache.ContainsKey($key) -and ((Get-Date) - $cache[$key].t).TotalSeconds -lt 20) { return $cache[$key].v }
@@ -65,7 +80,12 @@ function Get-Quote([string]$s) {
       if (-not $q) { try { $q = Quote-Yahoo "$key.KQ" } catch { $q = $null } }
       if (-not $q) { $q = Quote-Naver $key }
     }
-    else { $q = Quote-Yahoo $key }
+    else {
+      try { $q = Quote-Yahoo $key } catch { $q = $null }
+      if (-not $q -and $key -eq '^KS11') { $q = Quote-NaverIndex 'KOSPI' }
+      elseif (-not $q -and $key -eq '^KQ11') { $q = Quote-NaverIndex 'KOSDAQ' }
+      elseif (-not $q -and $key -match '^[A-Z][A-Z0-9.\-]{0,9}$' -and $key -notmatch '\.') { $q = Quote-Stooq $key }
+    }
   } catch { $q = $null }
   if ($q) { $cache[$key] = @{ t = (Get-Date); v = $q } }
   return $q
