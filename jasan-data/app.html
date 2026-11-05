@@ -507,6 +507,9 @@ body.dense-ui main{padding-block:18px 36px}
       <!-- GUIDE -->
       <section class="page" id="p-guide" hidden>
         <div class="page-head"><div><h1>시장 · 상품 가이드</h1><div class="sub" id="guideSub"></div></div></div>
+        <div class="card"><div class="card-head"><h3>관심종목</h3><span class="xs muted" id="watchHint"></span></div>
+          <div class="toolbar"><label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="watchQ" placeholder="종목명·티커 (예: 삼성전자, NVDA, BTC, GOLD)" aria-label="관심종목 검색"></label><button class="btn sm" id="watchAdd">추가</button></div>
+          <div class="list" id="watchPick"></div><div id="watchOut"></div></div>
         <div class="grid mk" id="gMarket"></div>
         <div class="grid g-3" id="outlookGrid"></div>
         <div class="grid g-2" id="guideGrid"></div>
@@ -709,7 +712,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.29.0";
+const APP_VERSION="3.30.0";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -1325,7 +1328,7 @@ $("#denseChk").onchange=()=>{UI.dense=$("#denseChk").checked;saveUI();applyDensi
 const ICONS={home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',assets:'<rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2"/>',
   ledger:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',analytics:'<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
   salary:'<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4"/>',grow:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',guide:'<path d="M4 5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h6"/>',tax:'<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>'};
-const PAGES=[["home","홈"],["assets","자산"],["ledger","원장"],["analytics","분석"],["tax","세금"],["salary","월급"],["grow","목표"],["guide","가이드"]];
+const PAGES=[["home","홈"],["assets","자산"],["ledger","원장"],["analytics","분석"],["tax","세금"],["salary","월급"],["grow","목표"],["guide","시장"]];
 const navHtml=PAGES.map(([k,l])=>`<a class="nav-item" href="#${k}" data-page="${k}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>${l}</a>`).join("");
 $("#sideNav").innerHTML=navHtml;$("#bottomNav").innerHTML=navHtml;
 let curPage="home";
@@ -2090,7 +2093,7 @@ function renderGrow(t){renderFire(t);renderCalendar(t);renderRetire(t);renderHB(
   renderMC();}
 
 /* ---- guide ---- */
-function renderGuide(){$("#guideSub").textContent=`${DATA.asOfLabel||""} · 매주 자동 갱신`;$("#gMarket").innerHTML=marketTiles();
+function renderGuide(){renderWatch();$("#guideSub").textContent=`${DATA.asOfLabel||""} · 매주 자동 갱신`;$("#gMarket").innerHTML=marketTiles();
   $("#outlookGrid").innerHTML=(DATA.outlook||[]).map(o=>`<div class="card"><h3>${esc(o.t)}</h3><div class="ink2 small">${esc(o.body)}</div></div>`).join("");
   $("#guideGrid").innerHTML=(DATA.guide||[]).map(g=>`<article class="card guide-card"><div class="row between wrap"><h3>${esc(g.t)}</h3><span class="chip ${g.risk==="h"?"bad":g.risk==="m"?"warn":"accent"}">${esc(g.tag||"")}</span></div><div class="ink2 small">${esc(g.d||"")}</div><dl>${(g.f||[]).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl><ul>${(g.tip||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></article>`).join("");
   $("#assumTbl").innerHTML=`<div class="tablewrap"><table class="dense" style="min-width:420px"><thead><tr><th>유형</th><th class="r">기대수익률(연)</th><th class="r">변동성(연)</th></tr></thead><tbody>${Object.keys(TYPES).map(k=>{const a=assum(k);return `<tr style="cursor:default"><td><span class="badge-dot" style="background:var(${TYPES[k].c})"></span>${TYPES[k].label}</td><td class="r num">${a.r.toFixed(1)}%</td><td class="r num">${a.v.toFixed(1)}%</td></tr>`}).join("")}</tbody></table></div>`;
@@ -2276,7 +2279,7 @@ async function refreshQuotes(manual){if(qsBusy)return;if(qsUp===null||manual)awa
       if(qc&&qc!==h.currency&&["KRW","USD","JPY","EUR"].includes(qc)){const k=fxRate(qc)/fxRate(h.currency);p*=k;pv*=k;}
       if(qc==="GBp"||qc==="GBX"){p/=100;pv/=100;}h.price=Math.round(p*10000)/10000;h.prevClose=pv||null;h.priceAt=today();h.liveAt=Date.now();h.liveSrc=q.src;n++;});
     const idx={};IDX.forEach(([sym,nm])=>{const q=res[sym];if(q&&num(q.price)>0)idx[sym]={nm,price:num(q.price),prev:num(q.prev),time:q.time};});if(Object.keys(idx).length){LS.set("jasan-idx",{at:Date.now(),idx});logBench(idx);}
-    qsAt=Date.now();LS.set("jasan-qs-at",qsAt);if(n)persist();priceAlertNotify();renderAll();setTimeout(()=>{backfillBench();autoDividends();},500);if(manual)toast(`시세 ${n}개 갱신${miss.length?` · 못 찾음 ${miss.length}개(티커 확인)`:""}`);}
+    qsAt=Date.now();LS.set("jasan-qs-at",qsAt);if(n)persist();priceAlertNotify();refreshWatch();renderAll();setTimeout(()=>{backfillBench();autoDividends();},500);if(manual)toast(`시세 ${n}개 갱신${miss.length?` · 못 찾음 ${miss.length}개(티커 확인)`:""}`);}
   catch(e){if(manual)toast("시세를 가져오지 못했어요: "+(e.message||"오류"));}finally{qsBusy=false;}}
 const histMem={};
 async function getHist(sym,range){const k=sym+":"+(range||"1y");if(histMem[k]&&Date.now()-histMem[k].at<3600e3)return histMem[k].v;const v=await qsFetch(`/history?s=${encodeURIComponent(sym)}&range=${range||"1y"}`,25000);if(v&&Array.isArray(v.c)){histMem[k]={at:Date.now(),v};return v;}throw new Error("no data");}
@@ -2304,6 +2307,26 @@ $("#tkFind").onclick=async()=>{const q=($("#f-ticker").value||$("#f-name").value
       const ty=$("#f-type").value;if(kr&&!["kstock","ketf","reit"].includes(ty)){$("#f-type").value=/ETF|KODEX|TIGER|ACE|SOL|RISE|KBSTAR|HANARO|ARIRANG|PLUS/i.test(x.name||"")?"ketf":"kstock";}else if(!kr&&x.type!=="CRYPTOCURRENCY"&&!["ostock","oetf"].includes(ty)){$("#f-type").value=x.type==="ETF"?"oetf":"ostock";}
       syncForm(!editingId);$("#tkList").innerHTML="";try{const r=await qsFetch("/quote?s="+encodeURIComponent(symOf({type:$("#f-type").value,ticker:$("#f-ticker").value})),12000);const qq=Object.values(r)[0];if(qq&&qq.price){if(qq.currency&&["USD","JPY","EUR","KRW"].includes(qq.currency)){$("#f-currency").value=qq.currency;syncCur();}$("#f-price").value=qq.price;toast(`현재가 ${Number(qq.price).toLocaleString("ko-KR")} ${qq.currency||""}`);}}catch(e){}});}catch(e){$("#tkList").innerHTML='<div class="xs muted">검색하지 못했어요.</div>';}};
 (async()=>{await qsPing();if(qsUp){setTimeout(()=>refreshQuotes(false),1200);}setInterval(async()=>{if(document.hidden)return;const gap=marketOpen()?5*60e3:30*60e3;if(Date.now()-qsAt<gap-5000)return;if(qsUp||await qsPing())refreshQuotes(false);},60e3);})();
+
+/* ================= watchlist ================= */
+let watch=LS.get("jasan-watch",[]);if(!Array.isArray(watch))watch=[];
+const wSym=w=>/^(GOLD|금)$/i.test(w.sym)?"GC=F":/^[A-Z0-9]+$/.test(w.sym)&&w.crypto?"KRW-"+w.sym:w.sym;
+async function refreshWatch(){if(!qsUp||!watch.length)return;try{const r=await qsFetch("/quote?s="+encodeURIComponent(watch.map(wSym).join(",")),20000);watch.forEach(w=>{const q=r[wSym(w)];if(q&&num(q.price)>0){w.price=num(q.price);w.prev=num(q.prev);w.cur=q.currency||"";w.at=Date.now();}});
+  for(const w of watch){if(!w.hiAt||days(w.hiAt,today())>=1){try{const h=await getHist(wSym(w),"1y");w.hi=Math.max(...h.c);w.lo=Math.min(...h.c);w.y1=h.c[h.c.length-1]/h.c[0]-1;w.hiAt=today();}catch(e){}}}
+  LS.set("jasan-watch",watch);if(curPage==="guide")renderWatch();
+  const hit=watch.filter(w=>num(w.buy)&&num(w.price)&&num(w.price)<=num(w.buy)&&w.buyAlert!==today());if(hit.length&&LS.get("jasan-notify",false)&&typeof Notification!=="undefined"&&Notification.permission==="granted"){try{new Notification("자산 키움 노트 · 관심종목",{body:hit.map(w=>`${w.name} 목표 매수가 도달 (${num(w.price).toLocaleString("ko-KR")})`).join("\n")});}catch(e){}hit.forEach(w=>w.buyAlert=today());LS.set("jasan-watch",watch);}}catch(e){}}
+function renderWatch(){if(!$("#watchOut"))return;$("#watchHint").textContent=qsUp?"":"실시간 시세 연결 프로그램이 켜져 있어야 가격이 나와요.";
+  $("#watchOut").innerHTML=watch.length?`<div class="tablewrap"><table class="dense" style="min-width:560px"><thead><tr><th>종목</th><th class="r">현재가</th><th class="r">오늘</th><th class="r">1년</th><th class="r">52주 고점 대비</th><th class="r">목표 매수가</th><th></th></tr></thead><tbody>${watch.map((w,i)=>{const c=w.prev?w.price/w.prev-1:null;const near=num(w.buy)&&w.price&&w.price<=num(w.buy);
+    return `<tr style="cursor:default"><td><b>${esc(w.name||w.sym)}</b> <span class="xs muted">${esc(w.sym)}</span>${near?' <span class="chip accent">매수가 도달</span>':""}</td><td class="r num">${w.price?num(w.price).toLocaleString("ko-KR",{maximumFractionDigits:2})+" "+esc(w.cur==="KRW"?"원":w.cur||""):"–"}</td><td class="r num ${c!=null?sgn(c):""}">${c!=null?pct(c,2):"–"}</td><td class="r num ${w.y1!=null?sgn(w.y1):""}">${w.y1!=null?pct(w.y1,1):"–"}</td><td class="r num">${w.hi&&w.price?pct(w.price/w.hi-1,1):"–"}</td><td class="r wt"><input type="number" step="any" min="0" data-wbuy="${i}" value="${num(w.buy)||""}" style="width:110px" placeholder="선택"></td><td class="row" style="gap:8px"><button class="link small" data-wadd="${i}">보유 추가</button><button class="link small" data-wdel="${i}" style="color:var(--muted)">삭제</button></td></tr>`;}).join("")}</tbody></table></div>`:'<div class="empty">아직 관심종목이 없어요. 종목명이나 티커로 검색해 추가하세요.</div>';
+  $$("[data-wdel]").forEach(b=>b.onclick=()=>{watch.splice(+b.dataset.wdel,1);LS.set("jasan-watch",watch);renderWatch();});
+  $$("[data-wbuy]").forEach(i=>i.onchange=()=>{watch[+i.dataset.wbuy].buy=num(i.value);LS.set("jasan-watch",watch);renderWatch();});
+  $$("[data-wadd]").forEach(b=>b.onclick=()=>{const w=watch[+b.dataset.wadd];const kr=/^\d{6}$/.test(w.sym);openHolding(null,w.crypto?"crypto":kr?(/ETF|KODEX|TIGER|ACE|SOL|RISE|KBSTAR|HANARO|PLUS/i.test(w.name||"")?"ketf":"kstock"):"ostock");setTimeout(()=>{$("#f-name").value=w.name||w.sym;$("#f-ticker").value=w.sym;if(w.price)$("#f-price").value=w.price;if(w.cur&&["USD","JPY","EUR","KRW"].includes(w.cur)){$("#f-currency").value=w.cur;syncCur();}},60);});}
+$("#watchAdd").onclick=async()=>{const q=$("#watchQ").value.trim();if(!q)return;if(!qsUp&&!(await qsPing())){toast("시세 연결 프로그램이 꺼져 있어요");return;}
+  if(/^(BTC|ETH|XRP|SOL|DOGE|ADA)$/i.test(q)){watch.push({sym:q.toUpperCase(),name:q.toUpperCase(),crypto:true});LS.set("jasan-watch",watch);$("#watchQ").value="";renderWatch();refreshWatch();return;}
+  try{const j=await qsFetch("/search?q="+encodeURIComponent(q),12000);const its=(j.items||[]).slice(0,6);if(!its.length){watch.push({sym:q.toUpperCase(),name:q});}else if(its.length===1){watch.push({sym:its[0].symbol.replace(/\.(KS|KQ)$/i,""),name:its[0].name});}
+    else{$("#watchPick").innerHTML=its.map((x,i)=>`<button class="item cmd" data-wp="${i}"><span class="pill">${esc(x.exch||"")}</span><span class="main name">${esc(x.name||x.symbol)}</span><span class="num small muted">${esc(x.symbol)}</span></button>`).join("");$$("[data-wp]").forEach(b=>b.onclick=()=>{const x=its[+b.dataset.wp];watch.push({sym:x.symbol.replace(/\.(KS|KQ)$/i,""),name:x.name});LS.set("jasan-watch",watch);$("#watchPick").innerHTML="";$("#watchQ").value="";renderWatch();refreshWatch();});return;}
+    LS.set("jasan-watch",watch);$("#watchQ").value="";renderWatch();refreshWatch();}catch(e){toast("검색하지 못했어요");}};
+$("#watchQ").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("#watchAdd").click();}});
 
 /* ================= in-app guide ================= */
 const GUIDE_SECTIONS=[
