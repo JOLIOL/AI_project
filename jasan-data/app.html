@@ -516,7 +516,7 @@ body.dense-ui main{padding-block:18px 36px}
         <div class="grid g-2" id="guideGrid"></div>
         <div class="card"><div class="card-head"><h3>자산군 가정치</h3><span class="xs muted">분석·시뮬레이션에 사용</span></div><div id="assumTbl"></div></div>
         <div class="note" id="sourcesLine"></div>
-        <div class="note">이 앱은 학습·기록용 도구이며 투자 권유가 아닙니다. 시장 정보는 언론 보도를 바탕으로 매주 자동 갱신되며, 세금 계산은 단순화한 추정치입니다. 가입·신고 전에는 금융사 공시와 국세청 안내를 확인하세요. 내 자산 데이터는 인터넷으로 전송되지 않고 이 컴퓨터에만 저장됩니다.</div>
+        <div class="note">이 앱은 학습·기록용 도구이며 투자 권유가 아닙니다. 시장 정보는 언론 보도를 바탕으로 매일(평일 장 마감 후) 자동 갱신되며, 세금 계산은 단순화한 추정치입니다. 가입·신고 전에는 금융사 공시와 국세청 안내를 확인하세요. 내 자산 데이터는 인터넷으로 전송되지 않고 이 컴퓨터에만 저장됩니다.</div>
       </section>
     </main>
   </div>
@@ -713,7 +713,7 @@ body.dense-ui main{padding-block:18px 36px}
 <script>
 (function(){
 "use strict";
-const APP_VERSION="3.35.0";
+const APP_VERSION="3.35.1";
 const DATA_URL="https://raw.githubusercontent.com/JOLIOL/AI_project/jasan-data/jasan-data/market.json";
 const DEFAULT_DATA={
  "schema": 1,
@@ -2060,7 +2060,7 @@ const fillSal=()=>{Object.entries(SAL_FIELDS).forEach(([k,id])=>{$("#"+id).value
 $("#salForm").addEventListener("input",()=>{Object.entries(SAL_FIELDS).forEach(([k,id])=>{const v=$("#"+id).value;if(k==="income"&&PROFILE.incomeMode!=="manual")return;PROFILE[k]=["risk","house","goal","company","head","incomeMode","members"].includes(k)?v:num(v);});LS.set(K.profile,PROFILE);mcTouched=false;const auto=PROFILE.incomeMode!=="manual";$("#s-income").disabled=auto;if(auto)$("#s-income").value=incomeOf();$("#s-income-hint").textContent=auto?"연봉에서 4대보험·세금을 빼고 자동 계산":"직접 입력한 값 사용";renderSoon();});
 $("#salForm").addEventListener("submit",e=>e.preventDefault());
 $("#checkLog").checked=!!UI.checkLog;$("#checkLog").onchange=()=>{UI.checkLog=$("#checkLog").checked;saveUI();};
-function renderSalary(t){renderProfileStrip();renderFlow();renderFixed();if(!$("#fl-month").value)fillFlowForm();const mv=mview();$("#sSub").textContent=`실수령액 ${short(incomeOf())}원 기준 · 시장 판단은 매주 자동 갱신`;$("#viewDate").textContent=`${DATA.updatedAt} 기준`;
+function renderSalary(t){renderProfileStrip();renderFlow();renderFixed();if(!$("#fl-month").value)fillFlowForm();const mv=mview();$("#sSub").textContent=`실수령액 ${short(incomeOf())}원 기준 · 시장 판단은 매일 장 마감 후 갱신`;$("#viewDate").textContent=`${DATA.updatedAt} 기준`;
   $("#viewCard").innerHTML=`<div class="row wrap" style="gap:6px"><span class="chip info">${VIEW_LABEL.rateTrend[mv.rateTrend]}</span><span class="chip ${mv.equity==="high"?"warn":mv.equity==="low"?"accent":""}">${VIEW_LABEL.equity[mv.equity]}</span></div>${mv.summary?`<div class="ink2">${esc(mv.summary)}</div>`:""}${mv.tilts.length?`<div class="grid g-3">${mv.tilts.map(x=>`<div class="tile small">${esc(x)}</div>`).join("")}</div>`:""}`;
   const pl=salaryPlan(PP(),t),c=checks();
   if(pl.err){$("#salOut").innerHTML=`<div class="empty">${esc(pl.err)}</div>`;$("#sSurplus").textContent="";$("#checkList").innerHTML="";$("#checkCount").textContent="";return;}
@@ -2095,7 +2095,7 @@ function renderGrow(t){renderFire(t);renderCalendar(t);renderRetire(t);renderHB(
   renderMC();}
 
 /* ---- guide ---- */
-function renderGuide(){renderWatch();$("#guideSub").textContent=`${DATA.asOfLabel||""} · 매주 자동 갱신`;$("#gMarket").innerHTML=marketTiles();
+function renderGuide(){renderWatch();$("#guideSub").textContent=`${DATA.asOfLabel||""} · 매일 장 마감 후 갱신`;$("#gMarket").innerHTML=marketTiles();
   $("#outlookGrid").innerHTML=(DATA.outlook||[]).map(o=>`<div class="card"><h3>${esc(o.t)}</h3><div class="ink2 small">${esc(o.body)}</div></div>`).join("");
   $("#guideGrid").innerHTML=(DATA.guide||[]).map(g=>`<article class="card guide-card"><div class="row between wrap"><h3>${esc(g.t)}</h3><span class="chip ${g.risk==="h"?"bad":g.risk==="m"?"warn":"accent"}">${esc(g.tag||"")}</span></div><div class="ink2 small">${esc(g.d||"")}</div><dl>${(g.f||[]).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl><ul>${(g.tip||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></article>`).join("");
   $("#assumTbl").innerHTML=`<div class="tablewrap"><table class="dense" style="min-width:420px"><thead><tr><th>유형</th><th class="r">기대수익률(연)</th><th class="r">변동성(연)</th></tr></thead><tbody>${Object.keys(TYPES).map(k=>{const a=assum(k);return `<tr style="cursor:default"><td><span class="badge-dot" style="background:var(${TYPES[k].c})"></span>${TYPES[k].label}</td><td class="r num">${a.r.toFixed(1)}%</td><td class="r num">${a.v.toFixed(1)}%</td></tr>`}).join("")}</tbody></table></div>`;
